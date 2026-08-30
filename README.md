@@ -1,28 +1,48 @@
-# Neogen card pipeline
+# proxie-maker
 
-Turns exported AI art plus Magic card data into print-ready card fronts for MakePlayingCards.
-Full spec: see `HANDOFF.md` (build order steps 1–2 are done; 3–6 pending).
+Turn a decklist into print-ready Magic proxy card fronts (815×1110 px @ 300 DPI,
+sRGB, no alpha — MakePlayingCards' format requirements), with optional custom art
+and custom card names. Card data comes from Scryfall's free bulk data — no API keys.
 
-## Current state — validation slice
-
-Renders four fixture cards (`data/fixtures.json`, real Scryfall oracle text) through the
-HTML/CSS template with placeholder art, exercising the worst cases: longest rules text,
-no rules text, near-overflow with flavor, and a renamed hero card.
+## Workflow
 
 ```
 npm install
 npx playwright install chromium
-npm run render          # → out/cards/*.png + out/contact-sheet.html
+
+npm run import -- path/to/decklist.txt   # decklist → data/cards.csv (downloads
+                                         #   Scryfall oracle data on first run)
+npm run render                           # → out/cards/*.png + out/contact-sheet.html
 ```
 
-Output is verified per card: exactly 815×1110 px, sRGB, no alpha (the MPC format gate).
-The renderer logs the auto-fit font size chosen for each card.
+Decklists can be plain (`1 Lightning Bolt`), `1x`-style, or MTG Arena exports.
+Unresolvable names fail loudly — a typo must not render.
+
+`data/cards.csv` is the project's source of truth and is hand-editable:
+
+- `display_name` — custom card name; the real name then moves to the collector line
+- `art_file` — a file in `art/raw/`; blank falls back to Scryfall's art for the card
+- `crop_x/y/w/h` — source-pixel crop; blank means auto center-crop
+- `theme` — frame color override; blank derives it from the card's colors
+  (`w u b r g ub multi colorless land`)
+- `qty` — copies in the deck (matters for the order, not the render)
+
+Re-importing a decklist preserves existing rows' art assignments and edits.
+
+Note: real Wizards art (the Scryfall fallback) is fine for home printing, but MPC
+screens for WotC IP — use custom art for cards you'll actually order.
+
+## Layout
 
 - `template/card.css` — the frame; restyle here, and only here
-- `template/fit-text.js` — steps rules-text / name font size down until it fits
-- `src/render.ts` — Playwright renderer; art is center-cropped by sharp as a stand-in
-  for the future crop UI
+- `template/fit-text.js` — steps rules-text/name font size down until it fits
+- `src/scryfall.ts` — oracle bulk cache (gzipped JSONL), exact-name lookup, art cache
+- `src/decklist.ts` / `src/import.ts` — decklist parsing → cards.csv
+- `src/render.ts` — Playwright renderer; verifies the MPC format gate per card
 
-Note: the Mana symbol font is the npm package `mana-font` (the handoff's
-`@andrewgioia/mana` name does not exist on npm), and the handoff's "Wilhelt" is
-**Wilhelt, the Rotcleaver** on Scryfall.
+Status vs. `HANDOFF.md`: build-order steps 1–3 done (template, auto-fit, data
+pipeline). Next: the drag-and-drop art workbench UI, then print prep and MPC
+order XML.
+
+Mana symbol font: npm package `mana-font` (SIL OFL). Card text uses free system
+faces — Magic's own fonts are proprietary.

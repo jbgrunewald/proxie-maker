@@ -50,7 +50,7 @@ function rulesHtml(text) {
 window.renderCard = (card) => {
   const o = card.oracle;
   document.getElementById('card').className = `card theme-${card.theme}`;
-  document.getElementById('name').textContent = card.neogen_name || card.original_card;
+  document.getElementById('name').textContent = card.display_name || card.original_card;
   document.getElementById('cost').innerHTML = manaify(o.mana_cost || '', true);
   document.getElementById('typeline').textContent = o.type_line;
 
@@ -75,9 +75,9 @@ window.renderCard = (card) => {
     pt.hidden = true;
   }
 
-  const collectorName = card.neogen_name ? card.original_card : '';
+  const collectorName = card.display_name ? card.original_card : '';
   document.getElementById('collector').textContent =
-    ['NEOGEN', collectorName, 'proxy — not for sale'].filter(Boolean).join('  •  ');
+    [collectorName, 'proxy — not for sale'].filter(Boolean).join('  •  ');
 };
 </script>
 </body>
