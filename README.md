@@ -13,6 +13,8 @@ npx playwright install chromium
 npm run app        # web app at http://localhost:5987 (downloads Scryfall
                    #   oracle data on first run)
 npm run render     # → out/cards/*.png + out/contact-sheet.html
+npm run prep       # → out/print/*.png (sharpen + shadow lift — MPC prints dark)
+npm run order      # → out/order.xml for the MPC Autofill desktop tool
 ```
 
 In the app: upload a decklist to see every card in the print template. Drop
@@ -52,10 +54,20 @@ Re-importing a decklist preserves existing rows' art assignments and edits.
 
 - `src/server.ts` — the web app (`npm run app`): decklist import, art upload,
   drag-to-assign and crop write-back, all through `data/cards.csv`
+- `src/prep.ts` — print prep: sharpen → ~10% shadow lift → sRGB, no alpha
+- `src/mpc-xml.ts` — order XML with local file paths; refuses (exit 1) while
+  cards still have placeholder art or missing print files
 
-Status vs. `HANDOFF.md`: build-order steps 1–4 done (template, auto-fit, data
-pipeline, art workbench). Next: print prep (sharpen + shadow lift), then MPC
-order XML.
+## Ordering
+
+MakePlayingCards has no API. `out/order.xml` targets the community
+[MPC Autofill desktop tool](https://github.com/chilli-axe/mpc-autofill), which
+uploads the local files and fills MPC's web designer; checkout stays manual.
+Put a card back at `art/cardback.png` before generating the order. MPC can
+change their site — verify the tool against the current designer before an
+actual order.
+
+Status vs. `HANDOFF.md`: all six build-order stages implemented.
 
 Mana symbol font: npm package `mana-font` (SIL OFL). Card text uses free system
 faces — Magic's own fonts are proprietary.
