@@ -10,10 +10,19 @@ and custom card names. Card data comes from Scryfall's free bulk data — no API
 npm install
 npx playwright install chromium
 
-npm run import -- path/to/decklist.txt   # decklist → data/cards.csv (downloads
-                                         #   Scryfall oracle data on first run)
-npm run render                           # → out/cards/*.png + out/contact-sheet.html
+npm run app        # web app at http://localhost:5987 (downloads Scryfall
+                   #   oracle data on first run)
+npm run render     # → out/cards/*.png + out/contact-sheet.html
 ```
+
+In the app: upload a decklist to see every card in the print template with
+Scryfall art. Drop your own images into the art tray, drag a thumbnail onto a
+card to assign it (auto-positioned), then drag inside the art window to
+reposition and scroll to zoom. Everything writes to `data/cards.csv`, which
+`npm run render` reads.
+
+CLI equivalents: `npm run import -- path/to/decklist.txt` imports a decklist
+without the app.
 
 Decklists can be plain (`1 Lightning Bolt`), `1x`-style, or MTG Arena exports.
 Unresolvable names fail loudly — a typo must not render.
@@ -40,8 +49,11 @@ screens for WotC IP — use custom art for cards you'll actually order.
 - `src/decklist.ts` / `src/import.ts` — decklist parsing → cards.csv
 - `src/render.ts` — Playwright renderer; verifies the MPC format gate per card
 
-Status vs. `HANDOFF.md`: build-order steps 1–3 done (template, auto-fit, data
-pipeline). Next: the drag-and-drop art workbench UI, then print prep and MPC
+- `src/server.ts` — the web app (`npm run app`): decklist import, art upload,
+  drag-to-assign and crop write-back, all through `data/cards.csv`
+
+Status vs. `HANDOFF.md`: build-order steps 1–4 done (template, auto-fit, data
+pipeline, art workbench). Next: print prep (sharpen + shadow lift), then MPC
 order XML.
 
 Mana symbol font: npm package `mana-font` (SIL OFL). Card text uses free system

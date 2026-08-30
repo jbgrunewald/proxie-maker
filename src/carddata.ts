@@ -1,6 +1,11 @@
 import type { CardRow } from './project.js';
 import { frontFace, type OracleCard } from './scryfall.js';
 
+// Art window inner size in card pixels; must match .art-window in
+// template/card.css (691 content width minus 2×2px border, 495 minus border).
+export const ART_W = 687;
+export const ART_H = 491;
+
 /** Frame theme from the card itself; a `theme` value in the CSV overrides this. */
 export function deriveTheme(card: OracleCard): string {
   const face = frontFace(card);

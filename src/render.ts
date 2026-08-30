@@ -4,15 +4,11 @@ import sharp from 'sharp';
 import { chromium } from 'playwright';
 import { loadCards, ROOT, type CardRow } from './project.js';
 import { loadOracle, lookupCard, ensureScryfallArt, type OracleCard } from './scryfall.js';
-import { buildCardData } from './carddata.js';
+import { buildCardData, ART_W, ART_H } from './carddata.js';
 
 // Print spec — verified numbers from the production spec, do not recompute.
 const CARD_W = 815;
 const CARD_H = 1110;
-// Art window inner size; must match .art-window in template/card.css
-// (691 content width minus 2×2px border, 495 minus border).
-const ART_W = 687;
-const ART_H = 491;
 
 async function ensurePlaceholderArt(): Promise<string> {
   const file = path.join(ROOT, 'art/placeholder.png');
