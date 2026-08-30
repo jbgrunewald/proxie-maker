@@ -1,0 +1,32 @@
+{
+  "name": "proxie-maker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "render": "tsx src/render.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jbgrunewald/proxie-maker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/jbgrunewald/proxie-maker/issues"
+  },
+  "homepage": "https://github.com/jbgrunewald/proxie-maker#readme",
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "mana-font": "^1.18.0",
+    "playwright": "^1.62.1",
+    "sharp": "^0.35.4"
+  }
+}

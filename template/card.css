@@ -1,0 +1,161 @@
+/* Geometry is fixed by the print spec: 815×1110 px @ 300 DPI (69×94 mm with bleed).
+   The outer 62px is border + bleed; trim falls ~35px in, safe area ~83px in.
+   If ART_W/ART_H change here, mirror them in src/render.ts. */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { background: #444; }
+
+.card {
+  width: 815px;
+  height: 1110px;
+  background: #0a0a0c;            /* border color, extends into bleed */
+  position: relative;
+}
+
+.frame {
+  position: absolute;
+  inset: 62px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  padding: 10px;
+  gap: 8px;
+}
+
+/* ---- themes ---------------------------------------------------------- */
+
+.theme-b .frame {
+  background: linear-gradient(160deg, #3b3541, #17141b 70%);
+  --panel: #d8d2c3;
+  --panel-edge: #6e6577;
+  --ink: #17141a;
+}
+
+.theme-ub .frame {
+  background: linear-gradient(160deg, #2c4654, #131b26 65%, #101018);
+  --panel: #cfd6d2;
+  --panel-edge: #5d7482;
+  --ink: #121a1e;
+}
+
+.theme-land .frame {
+  background: linear-gradient(160deg, #4a453b, #1c1a15 70%);
+  --panel: #d6cfbe;
+  --panel-edge: #7a7160;
+  --ink: #1b1811;
+}
+
+/* ---- panels ---------------------------------------------------------- */
+
+.title-bar, .type-bar {
+  background: linear-gradient(180deg, var(--panel), color-mix(in srgb, var(--panel) 78%, black));
+  border: 2px solid var(--panel-edge);
+  border-radius: 8px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.title-bar { height: 62px; justify-content: space-between; }
+.type-bar  { height: 48px; }
+
+.card-name {
+  font-family: "Optima", "Palatino", serif;
+  font-weight: 700;
+  font-size: 33px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.mana-cost { font-size: 27px; white-space: nowrap; flex-shrink: 0; margin-left: 12px; }
+.mana-cost .ms { margin-left: 3px; }
+
+.type-bar span {
+  font-family: "Optima", "Palatino", serif;
+  font-weight: 600;
+  font-size: 24px;
+}
+
+.art-window {
+  height: 495px;
+  border: 2px solid var(--panel-edge);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.art-window img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.text-box {
+  flex: 1;
+  min-height: 0;
+  background: color-mix(in srgb, var(--panel) 92%, white);
+  border: 2px solid var(--panel-edge);
+  border-radius: 6px;
+  padding: 14px 18px;
+}
+
+.text-box-inner {
+  height: 100%;
+  overflow: hidden;
+  font-family: "Iowan Old Style", "Palatino", Georgia, serif;
+  font-size: 30px;              /* fit-text.js steps this down as needed */
+  line-height: 1.22;
+  color: var(--ink);
+}
+
+.text-box-inner p + p { margin-top: 0.45em; }
+.text-box-inner .ms { font-size: 0.82em; margin: 0 1px; vertical-align: -1px; }
+.reminder { font-style: italic; }
+
+.flavor-divider {
+  height: 2px;
+  margin: 0.5em 8%;
+  background: linear-gradient(90deg, transparent, var(--panel-edge), transparent);
+}
+
+.flavor { font-style: italic; }
+
+.basic-symbol {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 210px;
+  opacity: 0.82;
+}
+
+.collector-line {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  color: #9a96a4;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 13.5px;
+  letter-spacing: 0.4px;
+  padding-left: 4px;
+}
+
+.pt-box[hidden] { display: none; }
+
+.pt-box {
+  position: absolute;
+  right: 4px;
+  bottom: 16px;
+  min-width: 108px;
+  height: 52px;
+  background: linear-gradient(180deg, var(--panel), color-mix(in srgb, var(--panel) 75%, black));
+  border: 2px solid var(--panel-edge);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Optima", "Palatino", serif;
+  font-weight: 700;
+  font-size: 30px;
+  color: var(--ink);
+  padding: 0 14px;
+}

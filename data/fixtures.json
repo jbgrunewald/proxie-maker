@@ -1,0 +1,61 @@
+[
+  {
+    "id": "the-scarab-god",
+    "original_card": "The Scarab God",
+    "neogen_name": "Khet, Devourer of Names",
+    "theme": "ub",
+    "flavor": null,
+    "oracle": {
+      "name": "The Scarab God",
+      "mana_cost": "{3}{U}{B}",
+      "type_line": "Legendary Creature \u2014 God",
+      "oracle_text": "At the beginning of your upkeep, each opponent loses X life and you scry X, where X is the number of Zombies you control.\n{2}{U}{B}: Exile target creature card from a graveyard. Create a token that's a copy of it, except it's a 4/4 black Zombie.\nWhen The Scarab God dies, return it to its owner's hand at the beginning of the next end step.",
+      "power": "5",
+      "toughness": "5"
+    }
+  },
+  {
+    "id": "wilhelt-the-rotcleaver",
+    "original_card": "Wilhelt, the Rotcleaver",
+    "neogen_name": "Vessel-Warden Osk",
+    "theme": "ub",
+    "flavor": "The vats never empty. The vats never sleep.",
+    "oracle": {
+      "name": "Wilhelt, the Rotcleaver",
+      "mana_cost": "{2}{U}{B}",
+      "type_line": "Legendary Creature \u2014 Zombie Warrior",
+      "oracle_text": "Whenever another Zombie you control dies, if it didn't have decayed, create a 2/2 black Zombie creature token with decayed. (It can't block. When it attacks, sacrifice it at end of combat.)\nAt the beginning of your end step, you may sacrifice a Zombie. If you do, draw a card.",
+      "power": "3",
+      "toughness": "3"
+    }
+  },
+  {
+    "id": "archon-of-cruelty",
+    "original_card": "Archon of Cruelty",
+    "neogen_name": "Herald of the Unmade",
+    "theme": "b",
+    "flavor": null,
+    "oracle": {
+      "name": "Archon of Cruelty",
+      "mana_cost": "{6}{B}{B}",
+      "type_line": "Creature \u2014 Archon",
+      "oracle_text": "Flying\nWhenever this creature enters or attacks, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life.",
+      "flavor_text": "Malice spreads on wings of tyranny.",
+      "power": "6",
+      "toughness": "6"
+    }
+  },
+  {
+    "id": "swamp",
+    "original_card": "Swamp",
+    "neogen_name": "",
+    "theme": "land",
+    "flavor": null,
+    "oracle": {
+      "name": "Swamp",
+      "mana_cost": "",
+      "type_line": "Basic Land \u2014 Swamp",
+      "oracle_text": "({T}: Add {B}.)"
+    }
+  }
+]
