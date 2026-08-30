@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>proxie-maker</title>
+<link rel="stylesheet" href="/node_modules/mana-font/css/mana.css">
+<link rel="stylesheet" href="/template/card.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="app">
+<header>
+  <h1>proxie-maker</h1>
+  <button id="toggle-import" hidden>Import decklist</button>
+</header>
+
+<section id="import-panel">
+  <h2>Upload a decklist</h2>
+  <p class="hint">Plain text, one card per line — <code>1 Lightning Bolt</code>,
+    <code>1x Lightning Bolt</code>, or an MTG Arena export. Paste it or choose a file.</p>
+  <textarea id="decklist-text" rows="10" placeholder="1 The Scarab God&#10;1 Wilhelt, the Rotcleaver&#10;12 Swamp"></textarea>
+  <div class="row">
+    <input type="file" id="decklist-file" accept=".txt,.dec,.dek,text/plain">
+    <button id="import-btn" class="primary">Import</button>
+  </div>
+  <div id="import-status"></div>
+</section>
+
+<main id="workbench" hidden>
+  <aside id="tray">
+    <h2>Art</h2>
+    <div id="drop-zone">
+      Drop images here<br>or
+      <label class="file-label">browse<input type="file" id="art-input" accept="image/*" multiple hidden></label>
+    </div>
+    <p class="hint">Drag a thumbnail onto a card. Then drag inside the art window
+      to reposition, scroll to zoom.</p>
+    <div id="art-list"></div>
+  </aside>
+  <section id="gallery"></section>
+</main>
+
+<script src="/template/card-dom.js"></script>
+<script src="/template/fit-text.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

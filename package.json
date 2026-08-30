@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "render": "tsx src/render.ts"
+    "render": "tsx src/render.ts",
+    "fetch-oracle": "tsx src/scryfall.ts",
+    "import": "tsx src/import.ts",
+    "app": "tsx src/server.ts"
   },
   "repository": {
     "type": "git",
@@ -25,6 +28,10 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "csv-parse": "^7.0.2",
+    "csv-stringify": "^6.8.3",
+    "hono": "^4.13.5",
     "mana-font": "^1.18.0",
     "playwright": "^1.62.1",
     "sharp": "^0.35.4"

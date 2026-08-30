@@ -25,6 +25,48 @@ body { background: #444; }
 
 /* ---- themes ---------------------------------------------------------- */
 
+.theme-w .frame {
+  background: linear-gradient(160deg, #d9d3c0, #8a8266 70%);
+  --panel: #f2eee0;
+  --panel-edge: #a49c82;
+  --ink: #2a2619;
+}
+
+.theme-u .frame {
+  background: linear-gradient(160deg, #3e5f8a, #16243c 70%);
+  --panel: #d4dde8;
+  --panel-edge: #6b82a0;
+  --ink: #131c28;
+}
+
+.theme-r .frame {
+  background: linear-gradient(160deg, #8a4438, #301410 70%);
+  --panel: #e6d6c8;
+  --panel-edge: #a06b58;
+  --ink: #28150f;
+}
+
+.theme-g .frame {
+  background: linear-gradient(160deg, #4a6b48, #182415 70%);
+  --panel: #d8e0cd;
+  --panel-edge: #6f8a66;
+  --ink: #16200f;
+}
+
+.theme-multi .frame {
+  background: linear-gradient(160deg, #b09a58, #4a3d1c 70%);
+  --panel: #e8dfc2;
+  --panel-edge: #a08d5a;
+  --ink: #241d0c;
+}
+
+.theme-colorless .frame {
+  background: linear-gradient(160deg, #7d8489, #2c3033 70%);
+  --panel: #dcdfe1;
+  --panel-edge: #8a9298;
+  --ink: #1c1f22;
+}
+
 .theme-b .frame {
   background: linear-gradient(160deg, #3b3541, #17141b 70%);
   --panel: #d8d2c3;

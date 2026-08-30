@@ -1,0 +1,14 @@
+# Sample decklist — exercises every frame theme plus edge cases:
+# a double-faced card (Delver), a renamed hero (set display_name in the CSV),
+# multicolor, artifact, and a basic land with qty.
+1 The Scarab God
+1 Wilhelt, the Rotcleaver
+1 Archon of Cruelty
+1 Swords to Plowshares
+1 Counterspell
+1 Lightning Bolt
+1 Llanowar Elves
+1 Sol Ring
+1 Atraxa, Praetors' Voice
+1 Delver of Secrets
+12 Swamp

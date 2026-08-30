@@ -6,79 +6,12 @@
 <link rel="stylesheet" href="card.css">
 </head>
 <body>
-<div id="card" class="card">
-  <div class="frame">
-    <div class="title-bar">
-      <span class="card-name" id="name"></span>
-      <span class="mana-cost" id="cost"></span>
-    </div>
-    <div class="art-window"><img id="art" alt=""></div>
-    <div class="type-bar"><span id="typeline"></span></div>
-    <div class="text-box">
-      <div class="text-box-inner" id="textbox"></div>
-    </div>
-    <div class="collector-line" id="collector"></div>
-    <div class="pt-box" id="pt" hidden></div>
-  </div>
-</div>
+<div id="card" class="card"></div>
+<script src="card-dom.js"></script>
 <script src="fit-text.js"></script>
 <script>
-const SYMBOL_ALIASES = { t: 'tap', q: 'untap' };
-
-function symbolHtml(sym, costStyle) {
-  const key = sym.toLowerCase().replace(/\//g, '');
-  const cls = SYMBOL_ALIASES[key] || key;
-  return `<i class="ms ms-${cls}${costStyle ? ' ms-cost ms-shadow' : ''}"></i>`;
-}
-
-function manaify(text, costStyle) {
-  return text.replace(/\{([^}]+)\}/g, (_, sym) => symbolHtml(sym, costStyle));
-}
-
-function esc(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function rulesHtml(text) {
-  return text.split('\n').map(p => {
-    let html = manaify(esc(p), true);
-    html = html.replace(/\(([^)]+)\)/g, '<em class="reminder">($1)</em>');
-    return `<p>${html}</p>`;
-  }).join('');
-}
-
-window.renderCard = (card) => {
-  const o = card.oracle;
-  document.getElementById('card').className = `card theme-${card.theme}`;
-  document.getElementById('name').textContent = card.neogen_name || card.original_card;
-  document.getElementById('cost').innerHTML = manaify(o.mana_cost || '', true);
-  document.getElementById('typeline').textContent = o.type_line;
-
-  const box = document.getElementById('textbox');
-  const isBasic = /\bBasic Land\b/.test(o.type_line);
-  if (isBasic) {
-    // Classic basic-land treatment: one big symbol instead of reminder text
-    const sym = { Swamp: 'b', Island: 'u', Plains: 'w', Mountain: 'r', Forest: 'g' }[o.name] || 'c';
-    box.innerHTML = `<div class="basic-symbol"><i class="ms ms-${sym}"></i></div>`;
-  } else {
-    let html = rulesHtml(o.oracle_text || '');
-    const flavor = card.flavor || o.flavor_text;
-    if (flavor) html += `<div class="flavor-divider"></div><p class="flavor">${esc(flavor)}</p>`;
-    box.innerHTML = html;
-  }
-
-  const pt = document.getElementById('pt');
-  if (o.power != null && o.toughness != null) {
-    pt.hidden = false;
-    pt.textContent = `${o.power}/${o.toughness}`;
-  } else {
-    pt.hidden = true;
-  }
-
-  const collectorName = card.neogen_name ? card.original_card : '';
-  document.getElementById('collector').textContent =
-    ['NEOGEN', collectorName, 'proxy — not for sale'].filter(Boolean).join('  •  ');
-};
+// Harness for the Playwright print renderer: one card, full size.
+window.renderCard = (card) => window.CardDom.renderInto(document.getElementById('card'), card);
 </script>
 </body>
 </html>
