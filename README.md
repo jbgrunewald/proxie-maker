@@ -15,11 +15,14 @@ npm run app        # web app at http://localhost:5987 (downloads Scryfall
 npm run render     # → out/cards/*.png + out/contact-sheet.html
 ```
 
-In the app: upload a decklist to see every card in the print template with
-Scryfall art. Drop your own images into the art tray, drag a thumbnail onto a
-card to assign it (auto-positioned), then drag inside the art window to
-reposition and scroll to zoom. Everything writes to `data/cards.csv`, which
-`npm run render` reads.
+In the app: upload a decklist to see every card in the print template. Drop
+your own images into the art tray, drag a thumbnail onto a card to assign it
+(auto-positioned), then drag inside the art window to reposition and scroll to
+zoom. Everything writes to `data/cards.csv`, which `npm run render` reads.
+
+Cards without assigned art render a placeholder, never the real card's art:
+printers screen for Wizards IP, so original art (plus this tool's original
+frame) is what actually makes it through an order.
 
 CLI equivalents: `npm run import -- path/to/decklist.txt` imports a decklist
 without the app.
@@ -30,7 +33,7 @@ Unresolvable names fail loudly — a typo must not render.
 `data/cards.csv` is the project's source of truth and is hand-editable:
 
 - `display_name` — custom card name; the real name then moves to the collector line
-- `art_file` — a file in `art/raw/`; blank falls back to Scryfall's art for the card
+- `art_file` — a file in `art/raw/`; blank renders the placeholder
 - `crop_x/y/w/h` — source-pixel crop; blank means auto center-crop
 - `theme` — frame color override; blank derives it from the card's colors
   (`w u b r g ub multi colorless land`)
@@ -38,8 +41,6 @@ Unresolvable names fail loudly — a typo must not render.
 
 Re-importing a decklist preserves existing rows' art assignments and edits.
 
-Note: real Wizards art (the Scryfall fallback) is fine for home printing, but MPC
-screens for WotC IP — use custom art for cards you'll actually order.
 
 ## Layout
 

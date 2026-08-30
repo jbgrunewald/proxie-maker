@@ -4,9 +4,10 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { loadCards, saveCards, ROOT, type CardRow } from './project.js';
-import { loadOracle, lookupCard, ensureScryfallArt } from './scryfall.js';
+import { loadOracle, lookupCard } from './scryfall.js';
 import { importDecklist } from './importer.js';
 import { buildCardData, ART_W, ART_H } from './carddata.js';
+import { ensurePlaceholderArt } from './placeholder.js';
 
 const PORT = 5987;
 const RAW_DIR = path.join(ROOT, 'art/raw');
@@ -29,7 +30,7 @@ function entryFor(row: CardRow) {
     art_file: row.art_file || null,
     crop,
     // Cache-bust so an art change is never masked by the browser cache.
-    data: buildCardData(row, card, `/api/art/${row.id}?v=${encodeURIComponent(row.art_file || 'scryfall')}`),
+    data: buildCardData(row, card, `/api/art/${row.id}?v=${encodeURIComponent(row.art_file || 'placeholder')}`),
   };
 }
 
@@ -127,16 +128,16 @@ app.get('/api/art-files', async (c) => {
   return c.json({ files: files.map((f) => ({ file: f, assigned_to: assigned.get(f) ?? [] })) });
 });
 
-// Art for the gallery: custom art if assigned, else Scryfall's (cached on demand).
+// Art for the gallery: custom art if assigned, else the placeholder. Never the
+// real card's art — MPC screens for WotC IP, so that default would set users up
+// to have orders rejected.
 app.get('/api/art/:id', async (c) => {
   const rows = await loadCards().catch(() => [] as CardRow[]);
   const row = rows.find((r) => r.id === c.req.param('id'));
   if (!row) return c.notFound();
   if (row.art_file) return c.redirect(`/art/raw/${encodeURIComponent(row.art_file)}`);
-  const card = lookupCard(row.original_card);
-  const file = await ensureScryfallArt(card);
-  if (!file) return c.notFound();
-  return c.redirect(`/art/scryfall/${card.id}.jpg`);
+  await ensurePlaceholderArt();
+  return c.redirect('/art/placeholder.png');
 });
 
 // Static: UI, the shared card template, the mana font, and art files.

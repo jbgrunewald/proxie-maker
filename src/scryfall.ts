@@ -20,7 +20,6 @@ export interface OracleFace {
   toughness?: string;
   loyalty?: string;
   colors?: string[];
-  image_uris?: { art_crop?: string };
 }
 
 export interface OracleCard extends OracleFace {
@@ -93,20 +92,4 @@ export function lookupCard(exactName: string): OracleCard {
 export function frontFace(card: OracleCard): OracleFace {
   const face = card.card_faces?.[0];
   return face ? { ...card, ...face } : card;
-}
-
-/** Download (and cache) Scryfall's art crop for a card. Returns a local path. */
-export async function ensureScryfallArt(card: OracleCard): Promise<string | null> {
-  const url = frontFace(card).image_uris?.art_crop ?? card.image_uris?.art_crop;
-  if (!url) return null;
-  const file = path.join(ROOT, 'art/scryfall', `${card.id}.jpg`);
-  try {
-    await stat(file);
-    return file;
-  } catch {}
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT } });
-  if (!res.ok) throw new Error(`art download for "${card.name}" → HTTP ${res.status}`);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, Buffer.from(await res.arrayBuffer()));
-  return file;
 }

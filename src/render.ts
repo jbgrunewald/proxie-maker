@@ -1,36 +1,18 @@
-import { writeFile, mkdir, access } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { chromium } from 'playwright';
 import { loadCards, ROOT, type CardRow } from './project.js';
-import { loadOracle, lookupCard, ensureScryfallArt, type OracleCard } from './scryfall.js';
+import { loadOracle, lookupCard } from './scryfall.js';
 import { buildCardData, ART_W, ART_H } from './carddata.js';
+import { ensurePlaceholderArt } from './placeholder.js';
 
 // Print spec — verified numbers from the production spec, do not recompute.
 const CARD_W = 815;
 const CARD_H = 1110;
 
-async function ensurePlaceholderArt(): Promise<string> {
-  const file = path.join(ROOT, 'art/placeholder.png');
-  try {
-    await access(file);
-    return file;
-  } catch {}
-  const svg = `<svg width="1374" height="982" xmlns="http://www.w3.org/2000/svg">
-    <defs><radialGradient id="g" cx="50%" cy="42%" r="75%">
-      <stop offset="0%" stop-color="#3f4b56"/><stop offset="100%" stop-color="#101216"/>
-    </radialGradient></defs>
-    <rect width="1374" height="982" fill="url(#g)"/>
-    <text x="687" y="510" text-anchor="middle" font-family="Helvetica" font-size="64"
-      fill="#6b7884" opacity="0.7">no art assigned</text>
-  </svg>`;
-  await mkdir(path.dirname(file), { recursive: true });
-  await sharp(Buffer.from(svg)).png().toFile(file);
-  return file;
-}
-
-/** Custom art with saved crop → custom art auto-crop → Scryfall art → placeholder. */
-async function resolveArt(row: CardRow, card: OracleCard): Promise<Buffer> {
+/** Custom art with saved crop → custom art auto-crop → placeholder. */
+async function resolveArt(row: CardRow): Promise<Buffer> {
   if (row.art_file) {
     const src = sharp(path.join(ROOT, 'art/raw', row.art_file));
     if (row.crop_w && row.crop_h) {
@@ -45,9 +27,7 @@ async function resolveArt(row: CardRow, card: OracleCard): Promise<Buffer> {
     }
     return src.resize(ART_W, ART_H, { fit: 'cover' }).png().toBuffer();
   }
-  const scryfallArt = await ensureScryfallArt(card);
-  const file = scryfallArt ?? (await ensurePlaceholderArt());
-  return sharp(file).resize(ART_W, ART_H, { fit: 'cover' }).png().toBuffer();
+  return sharp(await ensurePlaceholderArt()).resize(ART_W, ART_H, { fit: 'cover' }).png().toBuffer();
 }
 
 async function main() {
@@ -63,7 +43,7 @@ async function main() {
   let failed = false;
   for (const row of rows) {
     const card = lookupCard(row.original_card); // throws loudly on a bad name
-    const artData = `data:image/png;base64,${(await resolveArt(row, card)).toString('base64')}`;
+    const artData = `data:image/png;base64,${(await resolveArt(row)).toString('base64')}`;
     const cardData = buildCardData(row, card, artData);
 
     await page.evaluate((c) => (window as any).renderCard(c), cardData);
