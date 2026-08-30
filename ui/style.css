@@ -1,0 +1,105 @@
+/* App chrome only — the cards themselves are styled by /template/card.css,
+   the same file the print renderer uses. */
+
+body.app {
+  background: #1b1d22;
+  color: #d6d8de;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid #2e323a;
+}
+
+header h1 { font-size: 20px; margin: 0; letter-spacing: 0.5px; }
+
+#import-panel {
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 28px;
+  background: #22252c;
+  border: 1px solid #2e323a;
+  border-radius: 12px;
+}
+
+#import-panel[hidden] { display: none; }
+#import-panel h2 { margin-top: 0; font-size: 18px; }
+.hint { color: #8b8f99; font-size: 13px; }
+.hint code { background: #2a2e36; padding: 1px 5px; border-radius: 4px; }
+
+#decklist-text {
+  width: 100%;
+  box-sizing: border-box;
+  background: #17191d;
+  color: #d6d8de;
+  border: 1px solid #3a3f49;
+  border-radius: 8px;
+  padding: 10px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+button {
+  background: #2e323a;
+  color: #d6d8de;
+  border: 1px solid #3a3f49;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+button.primary { background: #3d6b9e; border-color: #4a7cb5; color: #fff; }
+button:hover { filter: brightness(1.15); }
+
+#import-status { margin-top: 12px; font-size: 13px; white-space: pre-line; }
+#import-status .err { color: #e08585; }
+
+#gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 28px;
+  justify-content: center;
+}
+
+/* Each slot shows the real 815×1110 card scaled down. */
+.card-slot { position: relative; }
+
+.card-scale {
+  width: 285px;
+  height: 389px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.card-scale .card {
+  transform: scale(0.35);
+  transform-origin: top left;
+}
+
+.qty-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 12px;
+  z-index: 1;
+}

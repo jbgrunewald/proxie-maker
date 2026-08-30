@@ -3,7 +3,8 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { chromium } from 'playwright';
 import { loadCards, ROOT, type CardRow } from './project.js';
-import { loadOracle, lookupCard, frontFace, ensureScryfallArt, type OracleCard } from './scryfall.js';
+import { loadOracle, lookupCard, ensureScryfallArt, type OracleCard } from './scryfall.js';
+import { buildCardData } from './carddata.js';
 
 // Print spec — verified numbers from the production spec, do not recompute.
 const CARD_W = 815;
@@ -12,18 +13,6 @@ const CARD_H = 1110;
 // (691 content width minus 2×2px border, 495 minus border).
 const ART_W = 687;
 const ART_H = 491;
-
-/** Frame theme from the card itself; a `theme` value in the CSV overrides this. */
-export function deriveTheme(card: OracleCard): string {
-  const face = frontFace(card);
-  if (/\bLand\b/.test(face.type_line ?? card.type_line)) return 'land';
-  const colors = face.colors ?? card.color_identity ?? [];
-  if (colors.length === 0) return 'colorless';
-  if (colors.length === 1) return colors[0].toLowerCase();
-  const pair = [...colors].sort().join('');
-  if (pair === 'BU') return 'ub';
-  return 'multi';
-}
 
 async function ensurePlaceholderArt(): Promise<string> {
   const file = path.join(ROOT, 'art/placeholder.png');
@@ -78,29 +67,14 @@ async function main() {
   let failed = false;
   for (const row of rows) {
     const card = lookupCard(row.original_card); // throws loudly on a bad name
-    const face = frontFace(card);
     const artData = `data:image/png;base64,${(await resolveArt(row, card)).toString('base64')}`;
-
-    const cardData = {
-      theme: row.theme || deriveTheme(card),
-      display_name: row.display_name,
-      original_card: face.name, // front-face name; the full "A // B" stays in the CSV
-      flavor: row.flavor || null,
-      oracle: {
-        name: face.name,
-        mana_cost: face.mana_cost,
-        type_line: face.type_line ?? card.type_line,
-        oracle_text: face.oracle_text,
-        flavor_text: face.flavor_text,
-        power: face.power ?? null,
-        toughness: face.toughness ?? null,
-      },
-    };
+    const cardData = buildCardData(row, card, artData);
 
     await page.evaluate((c) => (window as any).renderCard(c), cardData);
-    await page.evaluate((src) => {
-      (document.getElementById('art') as HTMLImageElement).src = src;
-    }, artData);
+    await page.waitForFunction(() => {
+      const img = document.querySelector('#card .art') as HTMLImageElement | null;
+      return !!img && (img.src === '' || img.complete);
+    });
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const sizes = await page.evaluate(() => (window as any).fitText());
 
