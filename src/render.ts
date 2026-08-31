@@ -1,4 +1,4 @@
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import sharp from 'sharp';
 import { chromium } from 'playwright';
@@ -34,6 +34,7 @@ async function main() {
   await loadOracle();
   const rows = await loadCards();
   const outDir = path.join(ROOT, 'out/cards');
+  await rm(outDir, { recursive: true, force: true }); // derived output — no stale files
   await mkdir(outDir, { recursive: true });
 
   const browser = await chromium.launch();

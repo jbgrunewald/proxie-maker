@@ -8,7 +8,9 @@
     "render": "tsx src/render.ts",
     "fetch-oracle": "tsx src/scryfall.ts",
     "import": "tsx src/import.ts",
-    "app": "tsx src/server.ts"
+    "app": "tsx src/server.ts",
+    "prep": "tsx src/prep.ts",
+    "order": "tsx src/mpc-xml.ts"
   },
   "repository": {
     "type": "git",
@@ -16,7 +18,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "module",
   "bugs": {
     "url": "https://github.com/jbgrunewald/proxie-maker/issues"
