@@ -9,6 +9,7 @@
     "fetch-oracle": "tsx src/scryfall.ts",
     "import": "tsx src/import.ts",
     "app": "tsx src/server.ts",
+    "dev": "PROXIE_LIVERELOAD=1 tsx watch src/server.ts",
     "prep": "tsx src/prep.ts",
     "order": "tsx src/mpc-xml.ts"
   },

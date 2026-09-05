@@ -1,10 +1,13 @@
 const importPanel = document.getElementById('import-panel');
 const toggleBtn = document.getElementById('toggle-import');
+const resetBtn = document.getElementById('reset-btn');
 const statusEl = document.getElementById('import-status');
 const workbench = document.getElementById('workbench');
 const gallery = document.getElementById('gallery');
 const artList = document.getElementById('art-list');
 const dropZone = document.getElementById('drop-zone');
+const decklistText = document.getElementById('decklist-text');
+const decklistFile = document.getElementById('decklist-file');
 
 const CARD_SCALE = 0.35;
 let artWindow = { w: 687, h: 491 }; // authoritative value arrives with /api/cards
@@ -18,10 +21,19 @@ async function refresh() {
   artWindow = payload.art_window ?? artWindow;
   renderGallery(payload);
   await refreshTray();
-  const hasCards = payload.cards.length > 0;
-  importPanel.hidden = hasCards;
+  showDeckChrome(payload.cards.length > 0);
+}
+
+// The header controls and the two panels are all a function of "is there a
+// deck?", so they move together. `keepImportPanel` is for the one case that
+// differs: after an import with unresolved names, the panel stays up to show
+// them.
+function showDeckChrome(hasCards, keepImportPanel = false) {
+  setArmed(false); // never let the button come back from hidden still armed
+  importPanel.hidden = hasCards && !keepImportPanel;
   workbench.hidden = !hasCards;
   toggleBtn.hidden = !hasCards;
+  resetBtn.hidden = !hasCards;
 }
 
 async function refreshTray() {
@@ -32,7 +44,8 @@ async function refreshTray() {
     const thumb = document.createElement('div');
     thumb.className = 'thumb' + (f.assigned_to.length ? ' assigned' : '');
     thumb.dataset.file = f.file;
-    thumb.innerHTML = `<img src="/art/raw/${encodeURIComponent(f.file)}" draggable="false">
+    thumb.dataset.url = f.url;
+    thumb.innerHTML = `<img src="${f.url}" draggable="false">
       <span class="thumb-name">${f.file}</span>`;
     if (f.assigned_to.length) thumb.title = `assigned to: ${f.assigned_to.join(', ')}`;
     thumb.addEventListener('mousedown', (e) => startTrayDrag(e, f.file));
@@ -127,7 +140,9 @@ function startTrayDrag(e, file) {
   e.preventDefault();
   const ghost = document.createElement('div');
   ghost.className = 'drag-ghost';
-  ghost.innerHTML = `<img src="/art/raw/${encodeURIComponent(file)}">`;
+  const src = artList.querySelector(`.thumb[data-file="${CSS.escape(file)}"]`)?.dataset.url
+    ?? `/art/raw/${encodeURIComponent(file)}`;
+  ghost.innerHTML = `<img src="${src}">`;
   document.body.appendChild(ghost);
   let target = null;
 
@@ -282,7 +297,7 @@ dropZone.addEventListener('drop', (e) => {
 // ---------------------------------------------------------------- import
 
 document.getElementById('import-btn').addEventListener('click', async () => {
-  const text = document.getElementById('decklist-text').value;
+  const text = decklistText.value;
   if (!text.trim()) {
     statusEl.innerHTML = '<span class="err">Paste a decklist or choose a file first.</span>';
     return;
@@ -301,19 +316,70 @@ document.getElementById('import-btn').addEventListener('click', async () => {
   statusEl.textContent = msg;
   artWindow = result.art_window ?? artWindow;
   renderGallery(result);
-  importPanel.hidden = !result.unresolved?.length;
-  workbench.hidden = false;
-  toggleBtn.hidden = false;
+  showDeckChrome(true, !!result.unresolved?.length);
   refreshTray();
 });
 
-document.getElementById('decklist-file').addEventListener('change', async (e) => {
+decklistFile.addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  if (file) document.getElementById('decklist-text').value = await file.text();
+  if (file) decklistText.value = await file.text();
 });
 
 toggleBtn.addEventListener('click', () => {
   importPanel.hidden = !importPanel.hidden;
+});
+
+// ---------------------------------------------------------------- reset
+
+// Two-step confirm rather than confirm(): a modal dialog blocks the page, and
+// this keeps the "what it does" text on the button itself. It stays armed until
+// dismissed rather than timing out — a timer that expires while you're reading
+// the button turns your confirming click into a silent re-arm.
+const ARMED_LABEL = 'Discard deck + art?';
+const ARMED_TITLE = 'Deletes the decklist and every uploaded art file. Cannot be undone.';
+
+const isArmed = () => resetBtn.classList.contains('danger');
+
+function setArmed(armed) {
+  resetBtn.classList.toggle('danger', armed);
+  resetBtn.textContent = armed ? ARMED_LABEL : 'Start over';
+  resetBtn.title = armed ? ARMED_TITLE : '';
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (!resetBtn.contains(e.target)) setArmed(false);
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setArmed(false);
+}, true);
+
+let resetting = false;
+
+resetBtn.addEventListener('click', async () => {
+  if (resetting) return; // a second click of a double-click must not re-arm
+  if (!isArmed()) {
+    setArmed(true);
+    return;
+  }
+  setArmed(false);
+  resetting = true;
+  try {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: 'discard-art' }),
+    });
+    if (!res.ok) {
+      statusEl.innerHTML = '<span class="err">Reset failed — nothing was changed.</span>';
+      return;
+    }
+    decklistText.value = '';
+    decklistFile.value = ''; // else re-picking the same file fires no change event
+    statusEl.textContent = 'Project cleared — decklist and uploaded art removed.';
+  } finally {
+    resetting = false;
+  }
+  await refresh();
 });
 
 refresh();

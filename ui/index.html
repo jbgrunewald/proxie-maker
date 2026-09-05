@@ -10,7 +10,10 @@
 <body class="app">
 <header>
   <h1>proxie-maker</h1>
-  <button id="toggle-import" hidden>Import decklist</button>
+  <div class="header-actions">
+    <button id="toggle-import" hidden>Import decklist</button>
+    <button id="reset-btn" hidden>Start over</button>
+  </div>
 </header>
 
 <section id="import-panel">
@@ -42,5 +45,6 @@
 <script src="/template/card-dom.js"></script>
 <script src="/template/fit-text.js"></script>
 <script src="/app.js"></script>
+<script src="/livereload.js"></script>
 </body>
 </html>
