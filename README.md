@@ -79,6 +79,17 @@ npm run app        # → http://localhost:5987
 
 CLI-only alternative to step 1: `npm run import -- path/to/decklist.txt`.
 
+**Start over** in the header empties the project: the decklist and every
+uploaded art file in `art/raw/`. Click once to arm, again to confirm — the
+deleted art is not recoverable. Rendered output in `out/` is left alone.
+
+## Working on the app
+
+`npm run dev` is `npm run app` plus live reload: `ui/` and `template/` edits
+refresh the open browser tab, and `src/` edits restart the server (~2s), after
+which the tab reloads itself. `npm run app` has none of it, so a stray save
+can't reload the page out from under you while you're placing art.
+
 ## Placing the order
 
 MPC has no public API. `out/order.xml` targets the community

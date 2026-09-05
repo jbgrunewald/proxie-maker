@@ -1,17 +1,25 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { watch } from 'node:fs';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { loadCards, saveCards, ROOT, type CardRow } from './project.js';
+import { streamSSE } from 'hono/streaming';
+import {
+  loadCards, saveCards, listRawImages, resetProject,
+  IMAGE_EXT, RAW_DIR, ROOT, type CardRow,
+} from './project.js';
 import { loadOracle, lookupCard } from './scryfall.js';
 import { importDecklist } from './importer.js';
 import { buildCardData, ART_W, ART_H } from './carddata.js';
 import { ensurePlaceholderArt } from './placeholder.js';
 
 const PORT = 5987;
-const RAW_DIR = path.join(ROOT, 'art/raw');
-const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+// Live reload is a development convenience, so it is off in the `npm run app`
+// path a user builds a deck in — an unrelated ui/ save should not yank the page
+// out from under someone mid-crop. `npm run dev` sets this.
+const LIVE_RELOAD = process.env.PROXIE_LIVERELOAD === '1';
 
 function entryFor(row: CardRow) {
   const card = lookupCard(row.original_card);
@@ -75,6 +83,25 @@ app.post('/api/decklist', async (c) => {
   }
 });
 
+// Start over: empty the project — deck and uploaded art both. Permanent, which
+// is why the UI arms it behind a confirm step. The response carries no payload;
+// the client refetches, and building one here would be wasted work.
+app.post('/api/reset', async (c) => {
+  // Irreversible and unauthenticated on a known port, so require a JSON body:
+  // that makes the request non-simple, and a page on another origin cannot send
+  // it without a CORS preflight this server never answers. The token is a
+  // second, cheaper guard against a stray POST from a shell.
+  if (!c.req.header('content-type')?.includes('application/json')) {
+    return c.json({ error: 'reset requires a JSON request' }, 415);
+  }
+  const body = await c.req.json().catch(() => null);
+  if (body?.confirm !== 'discard-art') {
+    return c.json({ error: 'reset requires {"confirm":"discard-art"}' }, 400);
+  }
+  await resetProject();
+  return c.body(null, 204);
+});
+
 // Assign/clear art or update the crop for one card. Writes straight to the CSV
 // so the next `npm run render` uses it.
 app.patch('/api/cards/:id', async (c) => {
@@ -115,17 +142,29 @@ app.post('/api/art-upload', async (c) => {
   return c.json({ saved });
 });
 
+/**
+ * A raw-art URL stamped with the file's mtime. Art is served with ordinary
+ * caching (it is far too big to revalidate on every load), so without this a
+ * file replaced under the same name — routine after a reset — would keep
+ * showing the old image until a hard reload.
+ */
+async function rawArtUrl(file: string): Promise<string> {
+  const v = await stat(path.join(RAW_DIR, file)).then((st) => st.mtimeMs).catch(() => 0);
+  return `/art/raw/${encodeURIComponent(file)}?v=${Math.round(v)}`;
+}
+
 app.get('/api/art-files', async (c) => {
-  let files: string[] = [];
-  try {
-    files = (await readdir(RAW_DIR)).filter((f) => IMAGE_EXT.test(f)).sort();
-  } catch {}
+  const files = await listRawImages();
   const rows = await loadCards().catch(() => [] as CardRow[]);
   const assigned = new Map<string, string[]>();
   for (const row of rows) {
     if (row.art_file) assigned.set(row.art_file, [...(assigned.get(row.art_file) ?? []), row.id]);
   }
-  return c.json({ files: files.map((f) => ({ file: f, assigned_to: assigned.get(f) ?? [] })) });
+  return c.json({
+    files: await Promise.all(
+      files.map(async (f) => ({ file: f, assigned_to: assigned.get(f) ?? [], url: await rawArtUrl(f) }))
+    ),
+  });
 });
 
 // Art for the gallery: custom art if assigned, else the placeholder. Never the
@@ -135,21 +174,85 @@ app.get('/api/art/:id', async (c) => {
   const rows = await loadCards().catch(() => [] as CardRow[]);
   const row = rows.find((r) => r.id === c.req.param('id'));
   if (!row) return c.notFound();
-  if (row.art_file) return c.redirect(`/art/raw/${encodeURIComponent(row.art_file)}`);
+  if (row.art_file) return c.redirect(await rawArtUrl(row.art_file));
   await ensurePlaceholderArt();
   return c.redirect('/art/placeholder.png');
 });
 
+// ------------------------------------------------------------ live reload
+//
+// Dev-only (`npm run dev`). The browser holds an SSE connection and reloads
+// when the front-end changes. Two paths cover the two kinds of edit:
+//
+//   ui/ + template/ edits  → the watcher below pushes a "reload" event.
+//   src/ edits             → tsx restarts this process, dropping every
+//                            connection; the client reloads once it reconnects.
+//
+// With the route absent outside dev, the client's EventSource gets a 404 and
+// gives up after one attempt rather than retrying.
+const liveClients = new Set<() => void>();
+
+if (LIVE_RELOAD) {
+  app.get('/api/livereload', (c) =>
+    streamSSE(c, async (stream) => {
+      const send = () => void stream.writeSSE({ data: 'reload' });
+      liveClients.add(send);
+      // Resolves only when the client goes away, which is what holds the stream
+      // (and so the response) open for as long as the tab is.
+      await new Promise<void>((resolve) => {
+        stream.onAbort(() => {
+          liveClients.delete(send);
+          resolve();
+        });
+      });
+    })
+  );
+}
+
+function watchForReload() {
+  // Editors write a file as several events (and some save via rename), so
+  // coalesce a burst into one reload.
+  let pending: NodeJS.Timeout | undefined;
+  const notify = (file: string | null) => {
+    if (file && /(^\.|~$|\.swp$)/.test(path.basename(file))) return; // editor temp files
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      for (const send of liveClients) send();
+    }, 60);
+  };
+  for (const dir of ['ui', 'template']) {
+    try {
+      watch(path.join(ROOT, dir), { recursive: true }, (_event, file) => notify(file))
+        .on('error', (err) => console.warn(`live reload: ${dir}/ watch failed (${err.message})`));
+    } catch (e: any) {
+      console.warn(`live reload: not watching ${dir}/ (${e.message})`);
+    }
+  }
+}
+
 // Static: UI, the shared card template, the mana font, and art files.
-app.use('/template/*', serveStatic({ root: './' }));
+//
+// The UI and template files are edited mid-session, and with only a
+// last-modified header the browser may reuse a cached copy without asking, so
+// an edit appears to do nothing until a hard reload. no-cache fixes that.
+//
+// It is deliberately not applied to art or the vendored font: this serveStatic
+// has no conditional-request handling — it answers If-Modified-Since with a
+// fresh 200 and the whole body — so no-cache there would re-stream every
+// megabyte of art on each load. Art URLs already carry a ?v= cache-buster.
+const noCache = (root: string) =>
+  serveStatic({ root, onFound: (_path, c) => void c.header('Cache-Control', 'no-cache') });
+
+app.use('/template/*', noCache('./'));
 app.use('/node_modules/mana-font/*', serveStatic({ root: './' }));
 app.use('/art/*', serveStatic({ root: './' }));
-app.use('/*', serveStatic({ root: './ui' }));
+app.use('/*', noCache('./ui'));
 
 async function main() {
   console.log('Loading Scryfall oracle data (downloads on first run)…');
   await loadOracle();
   serve({ fetch: app.fetch, port: PORT });
+  if (LIVE_RELOAD) watchForReload();
   console.log(`proxie-maker running at http://localhost:${PORT}`);
 }
 

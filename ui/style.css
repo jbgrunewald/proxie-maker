@@ -63,7 +63,10 @@ button {
 }
 
 button.primary { background: #3d6b9e; border-color: #4a7cb5; color: #fff; }
+button.danger { background: #7d3b3b; border-color: #a04d4d; color: #fff; }
 button:hover { filter: brightness(1.15); }
+
+.header-actions { display: flex; gap: 10px; }
 
 #import-status { margin-top: 12px; font-size: 13px; white-space: pre-line; }
 #import-status .err { color: #e08585; }
