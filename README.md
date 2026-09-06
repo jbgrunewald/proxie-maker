@@ -72,10 +72,13 @@ npm run app        # → http://localhost:5987
    ```
 5. **Generate the order:**
    ```
-   npm run order    # out/order.xml
+   npm run order            # → out/order.xml
+   npm run order -- --draft # same, but allowed while art is still placeholder
    ```
-   This refuses to succeed while any card still has placeholder art, so a
-   half-finished project can't be ordered by accident.
+   Without `--draft` this refuses while any card still has placeholder art and
+   writes nothing, so a half-finished project can't be ordered by accident.
+   `--draft` exists to exercise the handoff to the autofill tool before the art
+   is done — the file it writes names placeholder renders, so don't order it.
 
 CLI-only alternative to step 1: `npm run import -- path/to/decklist.txt`.
 
@@ -97,7 +100,10 @@ MPC has no public API. `out/order.xml` targets the community
 uploads your local files and fills MPC's web designer automatically; you review
 and check out in the browser yourself.
 
-- Put your card-back image at `art/cardback.png` before running `npm run order`.
+- `art/cardback.png` is your card back. If you haven't made one, `npm run order`
+  generates a neutral stand-in (original geometry — MPC screens for Wizards'
+  card back) at the same 815×1110, through the same print prep as the fronts.
+  Drop your own file at that path and it is used instead.
 - MPC can change their site at any time — do a small test order, or at least
   re-verify the desktop tool works, before committing to a large one.
 - Output meets MPC's requirements: 815×1110 px (63.5×88.9 mm + 3 mm bleed at

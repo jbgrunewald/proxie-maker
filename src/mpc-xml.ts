@@ -1,11 +1,11 @@
 import { access, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadCards, ROOT } from './project.js';
+import { ensureCardBack } from './placeholder.js';
 
 // MPC's pricing brackets; quantity must fit within the chosen bracket.
 const BRACKETS = [18, 36, 55, 72, 90, 108, 126, 144, 162, 180, 198, 216, 234, 396, 504, 612];
 const STOCK = '(S30) Standard Smooth';
-const CARDBACK = path.join(ROOT, 'art/cardback.png');
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -15,7 +15,14 @@ const esc = (s: string) =>
 // uploads and autofills into MakePlayingCards' designer. MPC has no API and can
 // change their site — re-verify the tool works before ordering.
 async function main() {
+  // A draft order is for exercising the export — it still names the placeholder
+  // renders, so it is not something to actually order from.
+  const draft = process.argv.includes('--draft');
   const rows = await loadCards();
+  if (rows.length === 0) {
+    console.error('No cards in data/cards.csv — import a decklist first.');
+    process.exit(1);
+  }
 
   const missingArt = rows.filter((r) => !r.art_file);
   const missingRender: string[] = [];
@@ -47,11 +54,8 @@ async function main() {
   const bracket = BRACKETS.find((b) => b >= quantity);
   if (!bracket) throw new Error(`${quantity} cards exceeds MPC's largest bracket (${BRACKETS.at(-1)})`);
 
-  let cardback = '';
-  try {
-    await access(CARDBACK);
-    cardback = `\n  <cardback>${esc(CARDBACK)}</cardback>`;
-  } catch {}
+  const cardbackFile = await ensureCardBack();
+  const cardback = `\n  <cardback>${esc(cardbackFile)}</cardback>`;
 
   const xml = `<order>
   <details>
@@ -66,23 +70,29 @@ ${fronts.join('\n')}
 </order>
 `;
 
+  // Validate before writing: a refusal that leaves an order.xml on disk is
+  // worse than no refusal at all, since the next step is handing that file to
+  // the autofill tool.
+  if (missingRender.length) {
+    console.error(`No print file in out/print/ for: ${missingRender.join(', ')}`);
+    console.error('Run `npm run render` then `npm run prep` first. Nothing written.');
+    process.exit(1);
+  }
+  if (missingArt.length && !draft) {
+    console.error(`${missingArt.length} card(s) still have PLACEHOLDER art and would print that way:`);
+    for (const r of missingArt) console.error(`  ✗ ${r.id}`);
+    console.error('\nNothing written. Assign art in the app, or re-run with');
+    console.error('`npm run order -- --draft` to export anyway for testing the handoff.');
+    process.exit(1);
+  }
+
   const outPath = path.join(ROOT, 'out/order.xml');
   await writeFile(outPath, xml);
   console.log(`Wrote ${outPath}: ${rows.length} cards, ${quantity} slots, bracket ${bracket}, ${STOCK}`);
-
-  if (missingRender.length) {
-    console.error(`\nWARNING — no print file in out/print/ for: ${missingRender.join(', ')}`);
-    console.error('Run `npm run render` then `npm run prep` first.');
-  }
+  console.log(`Card back: ${cardbackFile}`);
   if (missingArt.length) {
-    console.error(`\nWARNING — ${missingArt.length} card(s) still have PLACEHOLDER art and would print that way:`);
-    for (const r of missingArt) console.error(`  ✗ ${r.id}`);
+    console.log(`\nDRAFT — ${missingArt.length} card(s) carry placeholder art. Do not order from this file.`);
   }
-  if (!cardback) {
-    console.error('\nNOTE — no art/cardback.png found; the order has no <cardback> element.');
-    console.error("Add one before ordering (MPC needs a back; the desktop tool will ask otherwise).");
-  }
-  if (missingRender.length || missingArt.length) process.exit(1);
 }
 
 main();
