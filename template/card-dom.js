@@ -43,7 +43,13 @@
 
   function renderInto(root, card) {
     const o = card.oracle;
-    root.className = `card theme-${card.theme}`;
+    // Layout is a class plus the art window's size as custom properties, so
+    // card.css never repeats the numbers in LAYOUTS (src/carddata.ts).
+    root.className = `card theme-${card.theme} layout-${card.layout || 'classic'}`;
+    if (card.art) {
+      root.style.setProperty('--art-w', card.art.w + 'px');
+      root.style.setProperty('--art-h', card.art.h + 'px');
+    }
     root.innerHTML = MARKUP;
     const q = (sel) => root.querySelector(sel);
 

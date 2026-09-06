@@ -120,12 +120,33 @@ One row per distinct card. The app maintains it; every column is hand-editable.
 | `original_card` | Exact Scryfall name — the data join key. Corrected to canonical spelling on import. |
 | `display_name` | Optional custom name shown on the card; the real name then moves to the collector line. |
 | `art_file` | File in `art/raw/`. Blank renders the placeholder. |
-| `crop_x/y/w/h` | Crop in source-image pixels. Blank = auto centered crop. |
+| `crop_x/y/w/h` | Crop in source-image pixels. Blank = auto centered crop. Cleared when `art_file` or `layout` changes. |
+| `layout` | Card layout. Blank = `classic`. Sets the art window's shape; see "Adding a layout". |
 | `theme` | Frame color override. Blank = derived from the card's colors: `w u b r g ub multi colorless land`. |
 | `category` | Free tag for your own organization. |
 | `qty` | Copies in the deck (drives order slots, e.g. 12 for basic Swamp). |
 | `flavor` | Optional flavor text override. |
 | `notes` | Free text. |
+
+### Adding a layout
+
+Layouts are defined once, in `LAYOUTS` in `src/carddata.ts`, as the art
+window's content box in card pixels:
+
+```ts
+export const LAYOUTS = {
+  classic: { art: { w: 667, h: 491 } },
+} satisfies Record<string, LayoutSpec>;
+```
+
+A new layout is a row here plus, if it needs more than a differently shaped art
+window, a `.layout-<name>` block in `template/card.css`. The name reaches the
+template as a `layout-<name>` class and as the `--art-w` / `--art-h` custom
+properties, so the CSS never repeats the numbers.
+
+`npm run render` measures the rendered art window and fails if it disagrees
+with the table, so the two cannot drift apart silently — they had, before this
+check existed. An unknown layout name in the CSV is an error, not a fallback.
 
 Re-importing a decklist updates quantities and adds/removes rows while
 preserving art assignments, crops, and names on kept rows.

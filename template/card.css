@@ -11,6 +11,13 @@ body { background: #444; }
   height: 1110px;
   background: #0a0a0c;            /* border color, extends into bleed */
   position: relative;
+
+  /* Art window CONTENT box. card-dom.js overrides these per layout from
+     LAYOUTS in src/carddata.ts; these defaults are the classic layout, so the
+     card still renders if it is drawn without card data. render.ts measures
+     the result and fails if it disagrees with the table. */
+  --art-w: 667px;
+  --art-h: 491px;
 }
 
 .frame {
@@ -121,7 +128,8 @@ body { background: #444; }
 }
 
 .art-window {
-  height: 495px;
+  /* +4px for the 2px borders: box-sizing is border-box everywhere here. */
+  height: calc(var(--art-h) + 4px);
   border: 2px solid var(--panel-edge);
   border-radius: 4px;
   overflow: hidden;

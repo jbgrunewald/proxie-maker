@@ -10,15 +10,15 @@ const decklistText = document.getElementById('decklist-text');
 const decklistFile = document.getElementById('decklist-file');
 
 const CARD_SCALE = 0.35;
-let artWindow = { w: 687, h: 491 }; // authoritative value arrives with /api/cards
-const cropAspect = () => artWindow.w / artWindow.h;
+// The art window's shape comes from the card's layout, so it is per card —
+// each entry carries its own art_window from the server.
+const cropAspect = (entry) => entry.art_window.w / entry.art_window.h;
 
 // ---------------------------------------------------------------- data
 
 async function refresh() {
   const res = await fetch('/api/cards');
   const payload = await res.json();
-  artWindow = payload.art_window ?? artWindow;
   renderGallery(payload);
   await refreshTray();
   showDeckChrome(payload.cards.length > 0);
@@ -172,21 +172,21 @@ function startTrayDrag(e, file) {
 
 // ------------------------------------------- reposition (pan + zoom) art
 
-function coverCrop(imgW, imgH) {
+function coverCrop(imgW, imgH, aspect) {
   // Same default the renderer's fit:'cover' uses: max centered window-shaped rect.
   let w = imgW;
-  let h = w / cropAspect();
+  let h = w / aspect;
   if (h > imgH) {
     h = imgH;
-    w = h * cropAspect();
+    w = h * aspect;
   }
   return { x: (imgW - w) / 2, y: (imgH - h) / 2, w, h };
 }
 
-function clampCrop(crop, imgW, imgH) {
-  crop.w = Math.min(crop.w, imgW, imgH * cropAspect());
+function clampCrop(crop, imgW, imgH, aspect) {
+  crop.w = Math.min(crop.w, imgW, imgH * aspect);
   crop.w = Math.max(crop.w, 120);
-  crop.h = crop.w / cropAspect();
+  crop.h = crop.w / aspect;
   crop.x = Math.max(0, Math.min(crop.x, imgW - crop.w));
   crop.y = Math.max(0, Math.min(crop.y, imgH - crop.h));
   return crop;
@@ -206,13 +206,14 @@ function applyCropPreview(img, win, st) {
 function enableReposition(win, entry) {
   const img = win.querySelector('.art');
   win.classList.add('repositionable');
+  const aspect = cropAspect(entry);
   const st = { imgW: 0, imgH: 0, crop: null };
 
   const ready = () => {
     st.imgW = img.naturalWidth;
     st.imgH = img.naturalHeight;
-    st.crop = entry.crop ? { ...entry.crop } : coverCrop(st.imgW, st.imgH);
-    clampCrop(st.crop, st.imgW, st.imgH);
+    st.crop = entry.crop ? { ...entry.crop } : coverCrop(st.imgW, st.imgH, aspect);
+    clampCrop(st.crop, st.imgW, st.imgH, aspect);
     applyCropPreview(img, win, st);
   };
   if (img.complete && img.naturalWidth) ready();
@@ -227,7 +228,7 @@ function enableReposition(win, entry) {
       const s = (win.clientWidth * CARD_SCALE) / st.crop.w; // screen px per source px
       st.crop.x -= ev.movementX / s;
       st.crop.y -= ev.movementY / s;
-      clampCrop(st.crop, st.imgW, st.imgH);
+      clampCrop(st.crop, st.imgW, st.imgH, aspect);
       applyCropPreview(img, win, st);
     };
     const up = () => {
@@ -246,10 +247,10 @@ function enableReposition(win, entry) {
     const cx = st.crop.x + st.crop.w / 2;
     const cy = st.crop.y + st.crop.h / 2;
     st.crop.w *= factor;
-    st.crop.h = st.crop.w / cropAspect();
+    st.crop.h = st.crop.w / aspect;
     st.crop.x = cx - st.crop.w / 2;
     st.crop.y = cy - st.crop.h / 2;
-    clampCrop(st.crop, st.imgW, st.imgH);
+    clampCrop(st.crop, st.imgW, st.imgH, aspect);
     applyCropPreview(img, win, st);
     save();
   }, { passive: false });
@@ -314,7 +315,6 @@ document.getElementById('import-btn').addEventListener('click', async () => {
     msg += `\nNot found on Scryfall: ${result.unresolved.join(', ')}`;
   }
   statusEl.textContent = msg;
-  artWindow = result.art_window ?? artWindow;
   renderGallery(result);
   showDeckChrome(true, !!result.unresolved?.length);
   refreshTray();

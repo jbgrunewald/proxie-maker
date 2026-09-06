@@ -21,6 +21,7 @@ export interface CardRow {
   crop_y: string;
   crop_w: string;
   crop_h: string;
+  layout: string;
   theme: string;
   category: string;
   qty: string;
@@ -31,7 +32,7 @@ export interface CardRow {
 const COLUMNS: (keyof CardRow)[] = [
   'id', 'original_card', 'display_name', 'art_file',
   'crop_x', 'crop_y', 'crop_w', 'crop_h',
-  'theme', 'category', 'qty', 'flavor', 'notes',
+  'layout', 'theme', 'category', 'qty', 'flavor', 'notes',
 ];
 
 export function slugify(name: string): string {
@@ -58,6 +59,7 @@ export function emptyRow(originalCard: string, qty: number): CardRow {
     display_name: '',
     art_file: '',
     crop_x: '', crop_y: '', crop_w: '', crop_h: '',
+    layout: '',
     theme: '',
     category: '',
     qty: String(qty),
