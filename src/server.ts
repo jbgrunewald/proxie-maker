@@ -11,7 +11,7 @@ import {
 } from './project.js';
 import { loadOracle, lookupCard } from './scryfall.js';
 import { importDecklist } from './importer.js';
-import { buildCardData, ART_W, ART_H } from './carddata.js';
+import { buildCardData, layoutFor } from './carddata.js';
 import { ensurePlaceholderArt } from './placeholder.js';
 
 const PORT = 5987;
@@ -36,6 +36,9 @@ function entryFor(row: CardRow) {
     id: row.id,
     qty: parseInt(row.qty, 10) || 1,
     art_file: row.art_file || null,
+    // The crop rectangle is shaped by this card's art window, which varies by
+    // layout — so it travels with the card, not with the payload.
+    art_window: layoutFor(row).art,
     crop,
     // Cache-bust so an art change is never masked by the browser cache.
     data: buildCardData(row, card, `/api/art/${row.id}?v=${encodeURIComponent(row.art_file || 'placeholder')}`),
@@ -49,7 +52,7 @@ async function cardsPayload() {
   try {
     rows = await loadCards();
   } catch {
-    return { art_window: { w: ART_W, h: ART_H }, cards: [], errors: [] };
+    return { cards: [], errors: [] };
   }
   const cards: any[] = [];
   const errors: string[] = [];
@@ -60,7 +63,7 @@ async function cardsPayload() {
       errors.push(e.message);
     }
   }
-  return { art_window: { w: ART_W, h: ART_H }, cards, errors };
+  return { cards, errors };
 }
 
 const app = new Hono();
@@ -102,17 +105,34 @@ app.post('/api/reset', async (c) => {
   return c.body(null, 204);
 });
 
-// Assign/clear art or update the crop for one card. Writes straight to the CSV
-// so the next `npm run render` uses it.
+// Plain CSV columns the app may edit directly. Adding an editable field is a
+// line here rather than another branch in the handler.
+const EDITABLE_FIELDS = ['display_name', 'layout', 'theme', 'flavor', 'category', 'notes'] as const;
+
+// Saved crops are in source-image pixels at one art-window aspect, so anything
+// that changes which pixels are shown invalidates them.
+const CROP_INVALIDATING = new Set<string>(['art_file', 'layout']);
+
+// Edit one card. Writes straight to the CSV so the next `npm run render` uses it.
 app.patch('/api/cards/:id', async (c) => {
   const body = await c.req.json();
   const rows = await loadCards();
   const row = rows.find((r) => r.id === c.req.param('id'));
   if (!row) return c.notFound();
 
+  const clearCrop = () => {
+    row.crop_x = row.crop_y = row.crop_w = row.crop_h = '';
+  };
+
+  for (const field of EDITABLE_FIELDS) {
+    if (!(field in body)) continue;
+    row[field] = body[field] == null ? '' : String(body[field]);
+    if (CROP_INVALIDATING.has(field)) clearCrop();
+  }
+
   if ('art_file' in body) {
     row.art_file = body.art_file ?? '';
-    row.crop_x = row.crop_y = row.crop_w = row.crop_h = '';
+    clearCrop();
   }
   if ('crop' in body) {
     if (body.crop) {
@@ -121,11 +141,15 @@ app.patch('/api/cards/:id', async (c) => {
       row.crop_w = String(Math.round(body.crop.w));
       row.crop_h = String(Math.round(body.crop.h));
     } else {
-      row.crop_x = row.crop_y = row.crop_w = row.crop_h = '';
+      clearCrop();
     }
   }
+
+  // entryFor throws on an unknown layout, which would leave the CSV holding a
+  // value that cannot render — validate before saving.
+  const entry = entryFor(row);
   await saveCards(rows);
-  return c.json(entryFor(row));
+  return c.json(entry);
 });
 
 app.post('/api/art-upload', async (c) => {

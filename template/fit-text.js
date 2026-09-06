@@ -1,6 +1,7 @@
 // Step font sizes down until text fits its box. Scoped to one card root so the
-// gallery can fit many cards on a page. Returns the sizes used so the renderer
-// can log which cards are running tight.
+// gallery can fit many cards on a page. Returns the sizes used, plus whether
+// anything is STILL overflowing at the floor — the renderer treats that as a
+// failed card rather than printing clipped text.
 window.fitText = (root = document) => {
   const rules = root.querySelector('.text-box-inner');
   let rulesSize = 30;
@@ -20,5 +21,10 @@ window.fitText = (root = document) => {
     name.style.fontSize = nameSize + 'px';
   }
 
-  return { rulesSize, nameSize };
+  return {
+    rulesSize,
+    nameSize,
+    rulesOverflow: rules.scrollHeight > rules.clientHeight,
+    nameOverflow: !fits(),
+  };
 };
