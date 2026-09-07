@@ -31,7 +31,7 @@ async function refresh() {
 // differs: after an import with unresolved names, the panel stays up to show
 // them.
 function showDeckChrome(hasCards, keepImportPanel = false) {
-  setArmed(false); // never let the button come back from hidden still armed
+  disarmAll(); // never let a button come back from hidden still armed
   importPanel.hidden = hasCards && !keepImportPanel;
   workbench.hidden = !hasCards;
   toggleBtn.hidden = !hasCards;
@@ -54,6 +54,7 @@ async function refreshTray() {
     thumb.innerHTML = `<img src="${f.url}" draggable="false">
       <span class="thumb-name">${f.file}</span>`;
     thumb.addEventListener('mousedown', (e) => startTrayDrag(e, f.file));
+    thumb.appendChild(deleteArtButton(f.file));
     artList.appendChild(thumb);
   }
 
@@ -167,7 +168,57 @@ function layoutRow(entry) {
   sel.addEventListener('change', () => patchCard(entry.id, { layout: sel.value }));
 
   row.append(caption, sel);
+  row.append(removeCardButton(entry));
   return row;
+}
+
+// Removing a card drops the CSV row — including any display name, flavor text
+// and crop you hand-edited — so it asks first. The art file is untouched and
+// simply returns to the tray, since nothing points at it any more.
+function removeCardButton(entry) {
+  const btn = document.createElement('button');
+  btn.className = 'remove-card';
+  return confirmOnce(btn, {
+    label: 'Remove',
+    armedLabel: 'Remove card?',
+    title: 'Remove this card from the deck',
+    armedTitle: 'Drops the row and any hand edits on it. The art returns to the tray.',
+    onConfirm: async () => {
+      const res = await fetch(`/api/cards/${entry.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        statusEl.innerHTML = '<span class="err">Could not remove that card.</span>';
+        return;
+      }
+      const { removed } = await res.json();
+      statusEl.textContent = `Removed ${removed}. Re-import your decklist to bring it back.`;
+      await refresh();
+    },
+  });
+}
+
+// Deleting the file itself, not just an assignment — irreversible, so it asks.
+// Only unassigned art is ever in the tray, and the server refuses anyway if a
+// card still points at the file.
+function deleteArtButton(file) {
+  const btn = document.createElement('button');
+  btn.className = 'delete-art';
+  // Swallow mousedown so pressing the button never starts a drag of the thumb.
+  btn.addEventListener('mousedown', (e) => e.stopPropagation());
+  return confirmOnce(btn, {
+    label: 'Delete',
+    armedLabel: 'Delete file?',
+    title: `Delete ${file} from art/raw`,
+    armedTitle: 'Permanently deletes the image file. Cannot be undone.',
+    onConfirm: async () => {
+      const res = await fetch(`/api/art-files/${encodeURIComponent(file)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({}));
+        statusEl.innerHTML = `<span class="err">Could not delete ${file}${error ? ` — ${error}` : ''}.</span>`;
+        return;
+      }
+      await refreshTray();
+    },
+  });
 }
 
 function clearArtButton(entry) {
@@ -392,41 +443,74 @@ toggleBtn.addEventListener('click', () => {
   importPanel.hidden = !importPanel.hidden;
 });
 
-// ---------------------------------------------------------------- reset
+// ------------------------------------------------- confirm-once buttons
 
-// Two-step confirm rather than confirm(): a modal dialog blocks the page, and
-// this keeps the "what it does" text on the button itself. It stays armed until
-// dismissed rather than timing out — a timer that expires while you're reading
-// the button turns your confirming click into a silent re-arm.
-const ARMED_LABEL = 'Discard deck + art?';
-const ARMED_TITLE = 'Deletes the decklist and every uploaded art file. Cannot be undone.';
+// Anything that destroys work asks once: the first click arms the button, the
+// second runs it, and clicking elsewhere or pressing Escape backs out. Chosen
+// over confirm(), which blocks the page and moves the explanation off the
+// control. It stays armed until dismissed rather than timing out — a timer
+// that expires while you are reading turns your confirming click into a
+// silent re-arm.
+//
+// One document listener disarms whatever is armed, so the per-card buttons do
+// not each add their own.
+const armed = new Set();
 
-const isArmed = () => resetBtn.classList.contains('danger');
+function disarm(btn) {
+  armed.delete(btn);
+  btn.classList.remove('danger');
+  btn.textContent = btn.dataset.label;
+  btn.title = btn.dataset.title || '';
+}
 
-function setArmed(armed) {
-  resetBtn.classList.toggle('danger', armed);
-  resetBtn.textContent = armed ? ARMED_LABEL : 'Start over';
-  resetBtn.title = armed ? ARMED_TITLE : '';
+function disarmAll() {
+  for (const btn of [...armed]) disarm(btn);
 }
 
 document.addEventListener('mousedown', (e) => {
-  if (!resetBtn.contains(e.target)) setArmed(false);
+  for (const btn of [...armed]) if (!btn.contains(e.target)) disarm(btn);
 }, true);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') setArmed(false);
+  if (e.key === 'Escape') disarmAll();
 }, true);
 
-let resetting = false;
+/** Wire a button so `onConfirm` only runs on a second, deliberate click. */
+function confirmOnce(btn, { label, armedLabel, title = '', armedTitle = '', onConfirm }) {
+  btn.dataset.label = label;
+  btn.dataset.title = title;
+  btn.textContent = label;
+  btn.title = title;
 
-resetBtn.addEventListener('click', async () => {
-  if (resetting) return; // a second click of a double-click must not re-arm
-  if (!isArmed()) {
-    setArmed(true);
-    return;
-  }
-  setArmed(false);
-  resetting = true;
-  try {
+  let busy = false;
+  btn.addEventListener('click', async (e) => {
+    e.preventDefault();
+    if (busy) return; // a double-click must not re-arm behind the first action
+    if (!btn.classList.contains('danger')) {
+      disarmAll(); // only one thing armed at a time
+      armed.add(btn);
+      btn.classList.add('danger');
+      btn.textContent = armedLabel;
+      btn.title = armedTitle;
+      return;
+    }
+    disarm(btn);
+    busy = true;
+    try {
+      await onConfirm();
+    } finally {
+      busy = false;
+    }
+  });
+  return btn;
+}
+
+// ---------------------------------------------------------------- reset
+
+confirmOnce(resetBtn, {
+  label: 'Start over',
+  armedLabel: 'Discard deck + art?',
+  armedTitle: 'Deletes the decklist and every uploaded art file. Cannot be undone.',
+  onConfirm: async () => {
     const res = await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -439,10 +523,8 @@ resetBtn.addEventListener('click', async () => {
     decklistText.value = '';
     decklistFile.value = ''; // else re-picking the same file fires no change event
     statusEl.textContent = 'Project cleared — decklist and uploaded art removed.';
-  } finally {
-    resetting = false;
-  }
-  await refresh();
+    await refresh();
+  },
 });
 
 refresh();

@@ -1,5 +1,5 @@
 import { watch } from 'node:fs';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
@@ -152,6 +152,36 @@ app.patch('/api/cards/:id', async (c) => {
   const entry = entryFor(row);
   await saveCards(rows);
   return c.json(entry);
+});
+
+// Drop one card from the deck. Its art file is deliberately left on disk: the
+// row is gone, so nothing references the file, and it reappears in the tray for
+// use elsewhere. Deleting art is the tray's job, not this one.
+app.delete('/api/cards/:id', async (c) => {
+  const rows = await loadCards();
+  const i = rows.findIndex((r) => r.id === c.req.param('id'));
+  if (i === -1) return c.notFound();
+  const [removed] = rows.splice(i, 1);
+  await saveCards(rows);
+  return c.json({ removed: removed.display_name || removed.original_card });
+});
+
+// Delete one uploaded art file. Permanent, so the UI confirms first.
+app.delete('/api/art-files/:file', async (c) => {
+  // basename, so a crafted name cannot escape art/raw.
+  const name = path.basename(c.req.param('file'));
+  if (!IMAGE_EXT.test(name)) return c.json({ error: 'not an art file' }, 400);
+
+  // The tray only offers unassigned art, but a stale page could still ask;
+  // refuse rather than leave a card pointing at a file that no longer exists.
+  const rows = await loadCards().catch(() => [] as CardRow[]);
+  const usedBy = rows.filter((r) => r.art_file === name).map((r) => r.id);
+  if (usedBy.length > 0) {
+    return c.json({ error: `still assigned to ${usedBy.join(', ')}` }, 409);
+  }
+
+  await rm(path.join(RAW_DIR, name), { force: true });
+  return c.body(null, 204);
 });
 
 app.post('/api/art-upload', async (c) => {

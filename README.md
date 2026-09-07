@@ -69,6 +69,12 @@ npm run app        # → http://localhost:5987
    zoom. Saves as you go. The × on hover unassigns, returning the image to the
    tray. (A file can still be shared by two cards by naming it in both rows of
    the CSV; the tray just won't offer it twice.)
+
+   **Remove** under a card drops it from the deck — its art goes back to the
+   tray, untouched. **Delete** on a tray thumbnail deletes the image file
+   itself, which is permanent. Both ask before acting: the first click arms the
+   button, the second does it, and clicking elsewhere or pressing Escape backs
+   out.
 4. **Render and prep:**
    ```
    npm run render   # out/cards/  + out/contact-sheet.html for review

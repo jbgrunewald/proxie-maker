@@ -114,7 +114,26 @@ button:hover { filter: brightness(1.15); }
   user-select: none;
 }
 
+.thumb { position: relative; }
 .thumb img { width: 100%; height: 90px; object-fit: cover; display: block; pointer-events: none; }
+
+.delete-art {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid #555;
+  color: #dfe2e6;
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.thumb:hover .delete-art { opacity: 1; }
+.delete-art.danger { opacity: 1; }
 
 .thumb-name {
   display: block;
@@ -192,6 +211,18 @@ button:hover { filter: brightness(1.15); }
 }
 
 .layout-select:hover { border-color: #4a7cb5; }
+
+.remove-card {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: #2a2e36;
+  border: 1px solid #3a3f49;
+  color: #9aa0aa;
+  white-space: nowrap;
+}
+
+.remove-card:hover { color: #dfe2e6; border-color: #6b4a4a; }
 
 #gallery {
   flex: 1;
