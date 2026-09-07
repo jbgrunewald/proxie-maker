@@ -8,6 +8,7 @@ const artList = document.getElementById('art-list');
 const dropZone = document.getElementById('drop-zone');
 const decklistText = document.getElementById('decklist-text');
 const decklistFile = document.getElementById('decklist-file');
+const trayEmpty = document.getElementById('tray-empty');
 
 const CARD_SCALE = 0.35;
 // The art window's shape comes from the card's layout, so it is per card —
@@ -37,20 +38,33 @@ function showDeckChrome(hasCards, keepImportPanel = false) {
   resetBtn.hidden = !hasCards;
 }
 
+// The tray is the pool of art that is not on a card yet. Once a thumbnail is
+// dropped on a card it lives there instead; the × on the card sends it back.
 async function refreshTray() {
   const res = await fetch('/api/art-files');
   const { files } = await res.json();
+  const unassigned = files.filter((f) => f.assigned_to.length === 0);
+
   artList.innerHTML = '';
-  for (const f of files) {
+  for (const f of unassigned) {
     const thumb = document.createElement('div');
-    thumb.className = 'thumb' + (f.assigned_to.length ? ' assigned' : '');
+    thumb.className = 'thumb';
     thumb.dataset.file = f.file;
     thumb.dataset.url = f.url;
     thumb.innerHTML = `<img src="${f.url}" draggable="false">
       <span class="thumb-name">${f.file}</span>`;
-    if (f.assigned_to.length) thumb.title = `assigned to: ${f.assigned_to.join(', ')}`;
     thumb.addEventListener('mousedown', (e) => startTrayDrag(e, f.file));
     artList.appendChild(thumb);
+  }
+
+  // An empty tray means two very different things — nothing uploaded yet, or
+  // everything already placed. The drop zone covers the first; say the second.
+  const placed = files.length - unassigned.length;
+  trayEmpty.hidden = unassigned.length > 0 || files.length === 0;
+  if (!trayEmpty.hidden) {
+    trayEmpty.textContent =
+      (placed === 1 ? 'Your one image is on a card.' : `All ${placed} images are on cards.`) +
+      ' Remove one with the × on a card to bring it back here.';
   }
 }
 

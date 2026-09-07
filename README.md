@@ -62,9 +62,13 @@ npm run app        # → http://localhost:5987
    color derived from the card's colors.
 2. **Add your art.** Drop image files into the tray (any size — sources are
    never assumed to match). Drag a thumbnail onto a card to assign it; it
-   auto-positions with a centered crop.
+   auto-positions with a centered crop. The tray holds art that isn't on a card
+   yet, so an assigned image leaves it — what's left in the tray is what still
+   needs a home.
 3. **Adjust crops.** Drag inside a card's art window to reposition, scroll to
-   zoom. Saves as you go. The × on hover unassigns.
+   zoom. Saves as you go. The × on hover unassigns, returning the image to the
+   tray. (A file can still be shared by two cards by naming it in both rows of
+   the CSV; the tray just won't offer it twice.)
 4. **Render and prep:**
    ```
    npm run render   # out/cards/  + out/contact-sheet.html for review

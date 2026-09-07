@@ -126,9 +126,6 @@ button:hover { filter: brightness(1.15); }
   text-overflow: ellipsis;
 }
 
-.thumb.assigned { border-color: #3d6b4a; }
-.thumb.assigned .thumb-name::before { content: "✓ "; color: #6dbb85; }
-
 .drag-ghost {
   position: fixed;
   z-index: 100;
