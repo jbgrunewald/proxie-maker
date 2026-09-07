@@ -3,8 +3,14 @@ import { loadCards, saveCards, emptyRow, type CardRow } from './project.js';
 import { lookupCard } from './scryfall.js';
 
 export interface ImportResult {
+  /** Every row written to the CSV, unresolved names included. */
   rows: CardRow[];
+  /** Slots across all rows — what the CSV now describes. */
   slots: number;
+  /** Rows whose name resolved, i.e. the ones that will actually render. */
+  resolvedRows: number;
+  /** Slots belonging to those rows. */
+  resolvedSlots: number;
   unresolved: string[];
   removed: string[];
 }
@@ -47,6 +53,15 @@ export async function importDecklist(text: string): Promise<ImportResult> {
     .map((r) => r.original_card);
 
   await saveCards(rows);
-  const slots = rows.reduce((sum, r) => sum + (parseInt(r.qty, 10) || 1), 0);
-  return { rows, slots, unresolved, removed };
+  const qty = (r: CardRow) => parseInt(r.qty, 10) || 1;
+  const slots = rows.reduce((sum, r) => sum + qty(r), 0);
+
+  // An unresolved row is still written — the name is kept so it can be fixed
+  // rather than silently dropped — but it cannot render, so counting it as
+  // imported would overstate what the user actually got.
+  const unresolvedNames = new Set(unresolved.map((n) => n.toLowerCase()));
+  const resolved = rows.filter((r) => !unresolvedNames.has(r.original_card.toLowerCase()));
+  const resolvedSlots = resolved.reduce((sum, r) => sum + qty(r), 0);
+
+  return { rows, slots, resolvedRows: resolved.length, resolvedSlots, unresolved, removed };
 }

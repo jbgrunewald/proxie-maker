@@ -368,9 +368,14 @@ document.getElementById('import-btn').addEventListener('click', async () => {
     statusEl.innerHTML = `<span class="err">${result.error}</span>`;
     return;
   }
+  const n = result.unresolved?.length ?? 0;
   let msg = `Imported ${result.imported} cards (${result.slots} slots).`;
-  if (result.unresolved?.length) {
-    msg += `\nNot found on Scryfall: ${result.unresolved.join(', ')}`;
+  if (n) {
+    // These rows are in the CSV but will not render, so say so rather than
+    // folding them into the imported count.
+    msg += `\n${n} name${n === 1 ? '' : 's'} not found on Scryfall — `
+      + `${n === 1 ? 'it is' : 'they are'} in data/cards.csv but will not render `
+      + `until fixed: ${result.unresolved.join(', ')}`;
   }
   statusEl.textContent = msg;
   renderGallery(result);
