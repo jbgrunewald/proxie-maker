@@ -20,6 +20,10 @@ export interface LayoutSpec {
 
 export const LAYOUTS = {
   classic: { art: { w: 667, h: 491 } },
+  // Full bleed: the art is the whole card, trim and bleed included, and the
+  // panels float on top of it. Art for this layout is cropped to the card's
+  // own 815×1110, not to a window inside the frame.
+  'full-art': { art: { w: 815, h: 1110 } },
 } satisfies Record<string, LayoutSpec>;
 
 export type LayoutName = keyof typeof LAYOUTS;
