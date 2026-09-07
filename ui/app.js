@@ -135,19 +135,28 @@ function fillSlot(slot, entry) {
 
   const win = cardEl.querySelector('.art-window');
   win.classList.add('drop-target');
-  if (layouts.length > 1) slot.appendChild(layoutSelect(entry));
+  if (layouts.length > 1) slot.appendChild(layoutRow(entry));
   if (entry.art_file) {
     slot.appendChild(clearArtButton(entry));
     enableReposition(win, entry);
   }
 }
 
+// Sits under the card rather than over it: layout is a setting you go looking
+// for, unlike the × on the art, which is destructive and stays out of the way.
 // Options come from the server's layout list, so adding a layout in
 // src/carddata.ts is enough — nothing here enumerates them.
-function layoutSelect(entry) {
+function layoutRow(entry) {
+  const row = document.createElement('label'); // wraps the select, so the word is a click target
+  row.className = 'slot-controls';
+  row.title = 'Changing the layout resets this card\'s crop, since the art window changes shape';
+
+  const caption = document.createElement('span');
+  caption.className = 'slot-label';
+  caption.textContent = 'Layout';
+
   const sel = document.createElement('select');
   sel.className = 'layout-select';
-  sel.title = 'Card layout — changing it resets the crop, since the art window changes shape';
   for (const name of layouts) {
     const opt = document.createElement('option');
     opt.value = name;
@@ -156,7 +165,9 @@ function layoutSelect(entry) {
     sel.appendChild(opt);
   }
   sel.addEventListener('change', () => patchCard(entry.id, { layout: sel.value }));
-  return sel;
+
+  row.append(caption, sel);
+  return row;
 }
 
 function clearArtButton(entry) {
@@ -189,15 +200,22 @@ function startTrayDrag(e, file) {
     target = win;
     if (target) target.classList.add('drop-hover');
   };
-  const up = () => {
+  const up = (ev) => {
     document.removeEventListener('mousemove', move);
     document.removeEventListener('mouseup', up);
     ghost.remove();
-    if (target) {
-      target.classList.remove('drop-hover');
-      const slot = target.closest('.card-slot');
-      if (slot) patchCard(slot.dataset.id, { art_file: file });
-    }
+    if (target) target.classList.remove('drop-hover');
+
+    // Resolve the drop from where the button came up rather than from the last
+    // mousemove. A quick flick can end without a move event landing over the
+    // card, and the drop would then be silently lost. `target` stays as the
+    // fallback for a mouseup that carries no usable coordinates.
+    const el = ev && Number.isFinite(ev.clientX)
+      ? document.elementFromPoint(ev.clientX, ev.clientY)
+      : null;
+    const dropOn = (el && el.closest('.drop-target')) || target;
+    const slot = dropOn && dropOn.closest('.card-slot');
+    if (slot) patchCard(slot.dataset.id, { art_file: file });
   };
   document.addEventListener('mousemove', move);
   document.addEventListener('mouseup', up);
