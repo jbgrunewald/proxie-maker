@@ -76,8 +76,9 @@ app.post('/api/decklist', async (c) => {
   try {
     const result = await importDecklist(text);
     return c.json({
-      imported: result.rows.length,
-      slots: result.slots,
+      // What will render, not what was written — see ImportResult.
+      imported: result.resolvedRows,
+      slots: result.resolvedSlots,
       unresolved: result.unresolved,
       removed: result.removed,
       ...(await cardsPayload()),
