@@ -11,7 +11,7 @@ import {
 } from './project.js';
 import { loadOracle, lookupCard } from './scryfall.js';
 import { importDecklist } from './importer.js';
-import { buildCardData, layoutFor } from './carddata.js';
+import { buildCardData, layoutFor, LAYOUTS } from './carddata.js';
 import { ensurePlaceholderArt } from './placeholder.js';
 
 const PORT = 5987;
@@ -52,7 +52,7 @@ async function cardsPayload() {
   try {
     rows = await loadCards();
   } catch {
-    return { cards: [], errors: [] };
+    return { layouts: Object.keys(LAYOUTS), cards: [], errors: [] };
   }
   const cards: any[] = [];
   const errors: string[] = [];
@@ -63,7 +63,8 @@ async function cardsPayload() {
       errors.push(e.message);
     }
   }
-  return { cards, errors };
+  // The app builds its layout picker from this, so a new layout needs no UI change.
+  return { layouts: Object.keys(LAYOUTS), cards, errors };
 }
 
 const app = new Hono();

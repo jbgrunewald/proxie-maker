@@ -121,14 +121,24 @@ One row per distinct card. The app maintains it; every column is hand-editable.
 | `display_name` | Optional custom name shown on the card; the real name then moves to the collector line. |
 | `art_file` | File in `art/raw/`. Blank renders the placeholder. |
 | `crop_x/y/w/h` | Crop in source-image pixels. Blank = auto centered crop. Cleared when `art_file` or `layout` changes. |
-| `layout` | Card layout. Blank = `classic`. Sets the art window's shape; see "Adding a layout". |
+| `layout` | `classic` (blank) or `full-art`. Sets the art window's shape; see "Layouts". |
 | `theme` | Frame color override. Blank = derived from the card's colors: `w u b r g ub multi colorless land`. |
 | `category` | Free tag for your own organization. |
 | `qty` | Copies in the deck (drives order slots, e.g. 12 for basic Swamp). |
 | `flavor` | Optional flavor text override. |
 | `notes` | Free text. |
 
-### Adding a layout
+### Layouts
+
+Two ship today, pickable per card from the dropdown on each card in the app:
+
+- **`classic`** — art in a window inside the frame.
+- **`full-art`** — the art *is* the card, bleed included, with the title, type
+  and rules panels floating over it as dark translucent glass. Rules text stays
+  the same size as classic, so nothing becomes less readable.
+
+Changing a card's layout resets its crop, because the art window changes shape:
+classic crops landscape (667×491), full-art crops portrait (815×1110).
 
 Layouts are defined once, in `LAYOUTS` in `src/carddata.ts`, as the art
 window's content box in card pixels:
@@ -136,13 +146,16 @@ window's content box in card pixels:
 ```ts
 export const LAYOUTS = {
   classic: { art: { w: 667, h: 491 } },
+  'full-art': { art: { w: 815, h: 1110 } },
 } satisfies Record<string, LayoutSpec>;
 ```
 
 A new layout is a row here plus, if it needs more than a differently shaped art
-window, a `.layout-<name>` block in `template/card.css`. The name reaches the
-template as a `layout-<name>` class and as the `--art-w` / `--art-h` custom
-properties, so the CSS never repeats the numbers.
+window, a `.layout-<name>` block in `template/card.css` — `full-art` is one such
+block, and the card markup is identical for both. The name reaches the template
+as a `layout-<name>` class and as the `--art-w` / `--art-h` custom properties,
+so the CSS never repeats the numbers, and the app's picker is built from the
+server's layout list rather than a hardcoded one.
 
 `npm run render` measures the rendered art window and fails if it disagrees
 with the table, so the two cannot drift apart silently — they had, before this

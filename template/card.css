@@ -209,3 +209,61 @@ body { background: #444; }
   color: var(--ink);
   padding: 0 14px;
 }
+
+/* ---- full-art layout -------------------------------------------------
+   The art covers the whole card, bleed included, and the title/type/text
+   panels float over it as dark translucent glass. Only this block differs
+   from the classic layout — the DOM is identical, so the gallery preview and
+   the print render stay the same markup. */
+
+.layout-full-art .frame {
+  inset: 0;                     /* art reaches the card edge, through the bleed */
+  padding: 62px;                /* ...but panels stay inside the safe area */
+  border-radius: 0;
+  background: none;             /* the theme gradient would only hide the art */
+
+  /* Retint the shared panel variables rather than restyling each panel. */
+  --panel: rgba(14, 15, 20, 0.74);
+  --panel-edge: rgba(255, 255, 255, 0.3);
+  --ink: #f4f1e8;
+}
+
+.layout-full-art .art-window {
+  position: absolute;
+  inset: 0;                     /* fills .frame's padding box: the whole card */
+  height: auto;                 /* overrides the --art-h sizing of the classic window */
+  border: 0;
+  border-radius: 0;
+  z-index: 0;
+}
+
+/* Panels stack above the art. .pt-box is already absolute, so it only needs
+   the z-index — giving it position: relative would move it. */
+.layout-full-art .title-bar,
+.layout-full-art .type-bar,
+.layout-full-art .text-box,
+.layout-full-art .collector-line { position: relative; z-index: 1; }
+.layout-full-art .pt-box { z-index: 1; }
+
+/* Title sits at the top, type bar and text box at the bottom; the gap between
+   them is where the art shows through. */
+.layout-full-art .type-bar { margin-top: auto; }
+
+/* Same height as the classic text box, so text fitting behaves identically.
+   The base rule lightens the panel toward white, which would wash out against
+   light ink — keep the glass dark instead. */
+.layout-full-art .text-box {
+  flex: 0 0 307px;
+  background: var(--panel);
+}
+
+/* A shadow alone is not enough here: this line sits directly on the art, which
+   may be any brightness. Give it the same glass as the panels, shrink-wrapped
+   to the text so it reads as a caption rather than a bar. */
+.layout-full-art .collector-line {
+  align-self: flex-start;
+  color: rgba(244, 241, 232, 0.9);
+  background: rgba(14, 15, 20, 0.62);
+  border-radius: 5px;
+  padding: 0 9px;
+}

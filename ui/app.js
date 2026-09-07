@@ -13,6 +13,7 @@ const CARD_SCALE = 0.35;
 // The art window's shape comes from the card's layout, so it is per card —
 // each entry carries its own art_window from the server.
 const cropAspect = (entry) => entry.art_window.w / entry.art_window.h;
+let layouts = ['classic']; // replaced by the server's list on first load
 
 // ---------------------------------------------------------------- data
 
@@ -67,6 +68,7 @@ async function patchCard(id, body) {
 // ---------------------------------------------------------------- gallery
 
 function renderGallery(payload) {
+  layouts = payload.layouts ?? layouts;
   gallery.innerHTML = '';
   for (const msg of payload.errors ?? []) {
     const div = document.createElement('div');
@@ -119,10 +121,28 @@ function fillSlot(slot, entry) {
 
   const win = cardEl.querySelector('.art-window');
   win.classList.add('drop-target');
+  if (layouts.length > 1) slot.appendChild(layoutSelect(entry));
   if (entry.art_file) {
     slot.appendChild(clearArtButton(entry));
     enableReposition(win, entry);
   }
+}
+
+// Options come from the server's layout list, so adding a layout in
+// src/carddata.ts is enough — nothing here enumerates them.
+function layoutSelect(entry) {
+  const sel = document.createElement('select');
+  sel.className = 'layout-select';
+  sel.title = 'Card layout — changing it resets the crop, since the art window changes shape';
+  for (const name of layouts) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    opt.selected = name === entry.data.layout;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', () => patchCard(entry.id, { layout: sel.value }));
+  return sel;
 }
 
 function clearArtButton(entry) {
@@ -209,15 +229,21 @@ function enableReposition(win, entry) {
   const aspect = cropAspect(entry);
   const st = { imgW: 0, imgH: 0, crop: null };
 
+  // A cached or redirected image can report `complete` before it has decoded,
+  // and sizing a crop from a 0×0 image yields a degenerate rectangle that
+  // clampCrop then inflates to a 120px sliver — which a later drag would save
+  // over the user's real crop. So: bail until the size is known, and try both
+  // on load and immediately, since whichever comes first is unpredictable.
   const ready = () => {
+    if (!img.naturalWidth || !img.naturalHeight) return;
     st.imgW = img.naturalWidth;
     st.imgH = img.naturalHeight;
     st.crop = entry.crop ? { ...entry.crop } : coverCrop(st.imgW, st.imgH, aspect);
     clampCrop(st.crop, st.imgW, st.imgH, aspect);
     applyCropPreview(img, win, st);
   };
-  if (img.complete && img.naturalWidth) ready();
-  else img.addEventListener('load', ready);
+  img.addEventListener('load', ready);
+  ready();
 
   const save = debounce(() => patchCard(entry.id, { crop: roundCrop(st.crop) }), 500);
 
