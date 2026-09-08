@@ -39,8 +39,9 @@ belongs in version control alongside your decklist.
 ## Requirements
 
 - Node.js 22+
-- ~500 MB disk: Chromium for rendering (~100 MB) and Scryfall's card database
-  (~140 MB, downloaded automatically on first run, refreshed weekly)
+- ~500 MB disk: Chromium for rendering (~290 MB, installed by the setup step
+  below) and Scryfall's card database (~190 MB, downloaded automatically on
+  first run and refreshed weekly; `npm run fetch-oracle` refreshes it by hand)
 
 ## Setup
 
@@ -91,6 +92,19 @@ npm run app        # → http://localhost:5987
    is done — the file it writes names placeholder renders, so don't order it.
 
 CLI-only alternative to step 1: `npm run import -- path/to/decklist.txt`.
+
+Every stage is its own script, and each reads and writes plain files, so any of
+them can be re-run alone:
+
+| Script | Does |
+|---|---|
+| `npm run app` | The web app on http://localhost:5987 |
+| `npm run dev` | Same, plus live reload — see "Working on the app" |
+| `npm run import -- <file>` | Import a decklist without the app |
+| `npm run render` | `data/cards.csv` → `out/cards/*.png` |
+| `npm run prep` | `out/cards/` → `out/print/` (print correction) |
+| `npm run order` | `out/print/` → `out/order.xml` |
+| `npm run fetch-oracle` | Refresh the Scryfall cache by hand |
 
 **Start over** in the header empties the project: the decklist and every
 uploaded art file in `art/raw/`. Click once to arm, again to confirm — the
@@ -186,7 +200,7 @@ Fonts: mana symbols use the openly licensed
 [Mana font](https://mana.andrewgioia.com) (SIL OFL); text uses system serif
 faces. Magic's own typefaces (e.g. Beleren) are proprietary — don't add them.
 
-## Layout
+## Repository layout
 
 ```
 data/cards.csv        project file (source of truth, commit it)
@@ -200,11 +214,14 @@ out/                  derived output (gitignored): cards/, print/, order.xml
 
 ## Current limitations
 
-- Double-faced cards render their front face only; no card backs beyond the
-  one shared `art/cardback.png`.
+- Every card shares one back, `art/cardback.png`. Double-faced cards
+  (`transform`, `modal_dfc`) render their front face only — the back face is
+  not printed.
+- Cards whose two halves share one printed side — Adventures, Splits and
+  Flips — render only the first half, so the adventure or the second half of a
+  split is missing.
 - Tokens aren't generated automatically — add them to the decklist as cards
   if you want them printed.
-- One frame layout (classic frame with art window); no full-art option.
 
 ## A note on proxies
 
