@@ -1,5 +1,5 @@
 import { parseDecklist } from './decklist.js';
-import { loadCards, saveCards, emptyRow, type CardRow } from './project.js';
+import { updateCards, emptyRow, type CardRow } from './project.js';
 import { lookupCard } from './scryfall.js';
 
 export interface ImportResult {
@@ -24,10 +24,14 @@ export async function importDecklist(text: string): Promise<ImportResult> {
   const entries = parseDecklist(text);
   if (entries.length === 0) throw new Error('No cards found in decklist.');
 
-  let existing: CardRow[] = [];
-  try {
-    existing = await loadCards();
-  } catch {}
+  // Through the queue: an import replaces the whole file, so it must not
+  // interleave with a crop save. updateCards passes [] only when there is no
+  // file yet — a file that exists but cannot be parsed throws, rather than
+  // letting an import overwrite the user's damaged-but-present work.
+  return updateCards((existing) => importInto(existing, entries));
+}
+
+function importInto(existing: CardRow[], entries: ReturnType<typeof parseDecklist>): ImportResult {
   const byName = new Map(existing.map((r) => [r.original_card.toLowerCase(), r]));
 
   const rows: CardRow[] = [];
@@ -52,7 +56,9 @@ export async function importDecklist(text: string): Promise<ImportResult> {
     .filter((r) => !rows.some((n) => n.original_card.toLowerCase() === r.original_card.toLowerCase()))
     .map((r) => r.original_card);
 
-  await saveCards(rows);
+  // updateCards writes whatever this array holds when we return.
+  existing.splice(0, existing.length, ...rows);
+
   const qty = (r: CardRow) => parseInt(r.qty, 10) || 1;
   const slots = rows.reduce((sum, r) => sum + qty(r), 0);
 

@@ -144,6 +144,33 @@ and check out in the browser yourself.
 
 One row per distinct card. The app maintains it; every column is hand-editable.
 
+There is no database behind this file — it *is* the project — so it is written
+carefully:
+
+- **Saves are atomic.** Each write goes to a unique temporary file, is flushed
+  to disk, and is renamed over the target, so an interrupted write leaves you
+  with the old file rather than a truncated one.
+- **Writes are serialised.** Every change goes through one queue, so two edits
+  landing together — a crop saving as you click Import — cannot overwrite each
+  other.
+- **`data/cards.csv.bak` holds one undo, for the changes that lose work.** It
+  is written before a save that *removes* cards: **Start over**, **Remove**, or
+  a re-import that drops rows. Ordinary edits — art, crops, renames — don't
+  touch it, so the undo survives until you next remove something. To recover:
+
+  ```
+  cp data/cards.csv.bak data/cards.csv
+  ```
+
+  It restores the deck, not art files a **Start over** deleted.
+- **A file that can't be read is never written over.** The app reports the
+  problem instead of showing an empty project, and refuses to import or to
+  touch art while it can't tell which art is in use.
+
+Committing `data/cards.csv` is still the real safety net; the backup is one
+step deep, and if you broke the file by hand-editing it, undoing that edit
+beats restoring a backup that predates your other edits.
+
 | Column | Meaning |
 |---|---|
 | `id` | Stable slug, e.g. `the-scarab-god`. Output filenames derive from it. |

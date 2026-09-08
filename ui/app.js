@@ -9,6 +9,7 @@ const dropZone = document.getElementById('drop-zone');
 const decklistText = document.getElementById('decklist-text');
 const decklistFile = document.getElementById('decklist-file');
 const trayEmpty = document.getElementById('tray-empty');
+const projectError = document.getElementById('project-error');
 
 const CARD_SCALE = 0.35;
 // The art window's shape comes from the card's layout, so it is per card —
@@ -90,17 +91,17 @@ async function patchCard(id, body) {
 
 function renderGallery(payload) {
   layouts = payload.layouts ?? layouts;
+  // Outside the workbench on purpose. The workbench contains the art tray, and
+  // when the project file cannot be read the server cannot tell which art is
+  // in use — so the tray must stay hidden rather than offer to delete it all.
+  const problems = payload.errors ?? [];
+  projectError.hidden = problems.length === 0;
+  projectError.textContent = problems.join('\n');
   // Forget flips for cards that no longer exist, so a re-imported name does
   // not come back already flipped.
   const live = new Set(payload.cards.map((c) => c.id));
   for (const id of [...flipped]) if (!live.has(id)) flipped.delete(id);
   gallery.innerHTML = '';
-  for (const msg of payload.errors ?? []) {
-    const div = document.createElement('div');
-    div.className = 'err';
-    div.textContent = msg;
-    gallery.appendChild(div);
-  }
   for (const entry of payload.cards) gallery.appendChild(buildSlot(entry));
   fitAllCards();
 }

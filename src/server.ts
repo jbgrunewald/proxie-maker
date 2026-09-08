@@ -37,6 +37,20 @@ async function rawArtUrl(file: string): Promise<string> {
   return `/art/raw/${encodeURIComponent(file)}?v=${Math.round(v)}`;
 }
 
+/**
+ * Rows, or [] only when there is no project file yet. A file that exists but
+ * cannot be parsed must NOT read as "no cards use any art" — that would let
+ * the tray offer to delete every image, and art is not recoverable.
+ */
+async function loadCardsOrEmpty(): Promise<CardRow[]> {
+  try {
+    return await loadCards();
+  } catch (e: any) {
+    if (e?.code === 'ENOENT') return [];
+    throw e;
+  }
+}
+
 function assignedArt(rows: CardRow[]): Map<string, string[]> {
   const assigned = new Map<string, string[]>();
   for (const row of rows) {
@@ -78,8 +92,13 @@ async function cardsPayload() {
   let rows: CardRow[];
   try {
     rows = await loadCards();
-  } catch {
-    return { layouts: Object.keys(LAYOUTS), cards: [], errors: [] };
+  } catch (e: any) {
+    // No file yet is an empty project. Anything else means the file exists but
+    // could not be read, and that must NOT look like an empty project: the
+    // obvious next move is to import, which would overwrite the damaged file
+    // and take the backup of the good one with it.
+    if (e?.code === 'ENOENT') return { layouts: Object.keys(LAYOUTS), cards: [], errors: [] };
+    return { layouts: Object.keys(LAYOUTS), cards: [], errors: [e.message] };
   }
   const cards: any[] = [];
   const errors: string[] = [];
@@ -203,8 +222,7 @@ app.delete('/api/art-files/:file', async (c) => {
 
   // The tray only offers unassigned art, but a stale page could still ask;
   // refuse rather than leave a card pointing at a file that no longer exists.
-  const rows = await loadCards().catch(() => [] as CardRow[]);
-  const usedBy = assignedArt(rows).get(name) ?? [];
+  const usedBy = assignedArt(await loadCardsOrEmpty()).get(name) ?? [];
   if (usedBy.length > 0) {
     return c.json({ error: `still assigned to ${usedBy.join(', ')}` }, 409);
   }
@@ -229,7 +247,7 @@ app.post('/api/art-upload', async (c) => {
 
 app.get('/api/art-files', async (c) => {
   const files = await listRawImages();
-  const rows = await loadCards().catch(() => [] as CardRow[]);
+  const rows = await loadCardsOrEmpty();
   const assigned = assignedArt(rows);
   return c.json({
     files: await Promise.all(
@@ -242,7 +260,7 @@ app.get('/api/art-files', async (c) => {
 // real card's art — MPC screens for WotC IP, so that default would set users up
 // to have orders rejected.
 app.get('/api/art/:id', async (c) => {
-  const rows = await loadCards().catch(() => [] as CardRow[]);
+  const rows = await loadCardsOrEmpty();
   const row = rows.find((r) => r.id === c.req.param('id'));
   if (!row) return c.notFound();
   if (row.art_file) return c.redirect(await rawArtUrl(row.art_file));
