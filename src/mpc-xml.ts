@@ -27,27 +27,43 @@ async function main() {
   const missingArt = rows.filter((r) => !r.art_file);
   const missingRender: string[] = [];
 
+  const cardEl = (file: string, slots: string, name: string, query: string) =>
+    `    <card>
+      <id>${esc(file)}</id>
+      <sourceType>Local File</sourceType>
+      <slots>${slots}</slots>
+      <name>${esc(name)}</name>
+      <query>${esc(query)}</query>
+    </card>`;
+
   let slot = 0;
   const fronts: string[] = [];
+  const backs: string[] = [];
   for (const row of rows) {
     const qty = parseInt(row.qty, 10) || 1;
     const slots = Array.from({ length: qty }, (_, i) => slot + i).join(',');
     slot += qty;
+    const query = row.display_name || row.original_card;
+
     const file = path.join(ROOT, 'out/print', `${row.id}.png`);
     try {
       await access(file);
     } catch {
       missingRender.push(row.id);
     }
-    fronts.push(
-      `    <card>
-      <id>${esc(file)}</id>
-      <sourceType>Local File</sourceType>
-      <slots>${slots}</slots>
-      <name>${esc(row.id)}.png</name>
-      <query>${esc(row.display_name || row.original_card)}</query>
-    </card>`,
-    );
+    fronts.push(cardEl(file, slots, `${row.id}.png`, query));
+
+    // Only cards with their own back need an entry: every slot left out of
+    // <backs> is filled with <cardback> by the autofill tool.
+    if (row.back_art_file) {
+      const backFile = path.join(ROOT, 'out/print', `${row.id}-back.png`);
+      try {
+        await access(backFile);
+      } catch {
+        missingRender.push(`${row.id}-back`);
+      }
+      backs.push(cardEl(backFile, slots, `${row.id}-back.png`, query));
+    }
   }
 
   const quantity = slot;
@@ -56,6 +72,10 @@ async function main() {
 
   const cardbackFile = await ensureCardBack();
   const cardback = `\n  <cardback>${esc(cardbackFile)}</cardback>`;
+
+  // Omitted entirely when no card has its own back, which is the shape this
+  // file had before per-card backs existed and the autofill tool is happy with.
+  const backsBlock = backs.length ? `\n  <backs>\n${backs.join('\n')}\n  </backs>` : '';
 
   const xml = `<order>
   <details>
@@ -66,7 +86,7 @@ async function main() {
   </details>
   <fronts>
 ${fronts.join('\n')}
-  </fronts>${cardback}
+  </fronts>${backsBlock}${cardback}
 </order>
 `;
 

@@ -76,6 +76,12 @@ npm run app        # → http://localhost:5987
    itself, which is permanent. Both ask before acting: the first click arms the
    button, the second does it, and clicking elsewhere or pressing Escape backs
    out.
+
+   **⟳** shows a card's back. Every card shares `art/cardback.png` by default;
+   drag art onto the flipped card to give that one card its own back, and the ×
+   returns it to the shared one. Art used as a back counts as assigned, so it
+   leaves the tray like front art does. See
+   [docs/card-backs.md](docs/card-backs.md) for where this is going.
 4. **Render and prep:**
    ```
    npm run render   # out/cards/  + out/contact-sheet.html for review
@@ -144,6 +150,7 @@ One row per distinct card. The app maintains it; every column is hand-editable.
 | `original_card` | Exact Scryfall name — the data join key. Corrected to canonical spelling on import. |
 | `display_name` | Optional custom name shown on the card; the real name then moves to the collector line. |
 | `art_file` | File in `art/raw/`. Blank renders the placeholder. |
+| `back_art_file` | Optional per-card back image, fitted to the whole card. Blank uses the shared `art/cardback.png`. |
 | `crop_x/y/w/h` | Crop in source-image pixels. Blank = auto centered crop. Cleared when `art_file` or `layout` changes. |
 | `layout` | `classic` (blank) or `full-art`. Sets the art window's shape; see "Layouts". |
 | `theme` | Frame color override. Blank = derived from the card's colors: `w u b r g ub multi colorless land`. |
@@ -206,6 +213,7 @@ faces. Magic's own typefaces (e.g. Beleren) are proprietary — don't add them.
 data/cards.csv        project file (source of truth, commit it)
 data/oracle-cards.jsonl   Scryfall cache (auto-downloaded, gitignored)
 art/raw/              your art (gitignored)
+docs/                 design notes for work in progress
 template/             card.css + card-dom.js + fit-text.js — the frame
 src/                  pipeline stages: import, render, prep, mpc-xml, server
 ui/                   the web app
@@ -214,9 +222,9 @@ out/                  derived output (gitignored): cards/, print/, order.xml
 
 ## Current limitations
 
-- Every card shares one back, `art/cardback.png`. Double-faced cards
-  (`transform`, `modal_dfc`) render their front face only — the back face is
-  not printed.
+- Double-faced cards (`transform`, `modal_dfc`) render their front face only.
+  A card can be given its own back image, but the back *face* is not rendered
+  yet — see [docs/card-backs.md](docs/card-backs.md).
 - Cards whose two halves share one printed side — Adventures, Splits and
   Flips — render only the first half, so the adventure or the second half of a
   split is missing.

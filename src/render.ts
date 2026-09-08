@@ -110,6 +110,33 @@ async function main() {
     for (const problem of problems) console.error(`       ${problem}`);
   }
 
+  // Per-card backs. These are plain images fitted to the whole card rather than
+  // template renders, so they skip the browser — but they go through the same
+  // format gate, and land in out/cards/ so `npm run prep` picks them up with
+  // everything else.
+  for (const row of rows.filter((r) => r.back_art_file)) {
+    const problems: string[] = [];
+    const png = await sharp(path.join(ROOT, 'art/raw', row.back_art_file))
+      .resize(CARD_W, CARD_H, { fit: 'cover' })
+      .removeAlpha()
+      .toColourspace('srgb')
+      .png({ palette: false })
+      .toBuffer();
+    await writeFile(path.join(outDir, `${row.id}-back.png`), png);
+
+    const meta = await sharp(png).metadata();
+    if (meta.width !== CARD_W || meta.height !== CARD_H || meta.channels !== 3 || meta.space !== 'srgb') {
+      problems.push(`wrong format for print: ${meta.width}×${meta.height} ${meta.space} ch=${meta.channels}`);
+    }
+    const ok = problems.length === 0;
+    if (!ok) failed = true;
+    console.log(
+      `${ok ? 'ok  ' : 'FAIL'} ${(row.id + '-back').padEnd(28)} ${'back'.padEnd(9)} ` +
+        `${meta.width}×${meta.height} ${meta.space} ch=${meta.channels} ${row.back_art_file}`,
+    );
+    for (const problem of problems) console.error(`       ${problem}`);
+  }
+
   await browser.close();
 
   const sheet = `<!doctype html><meta charset="utf-8"><title>proxie-maker — contact sheet</title>

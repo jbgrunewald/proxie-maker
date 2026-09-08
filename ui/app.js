@@ -15,6 +15,9 @@ const CARD_SCALE = 0.35;
 // each entry carries its own art_window from the server.
 const cropAspect = (entry) => entry.art_window.w / entry.art_window.h;
 let layouts = ['classic']; // replaced by the server's list on first load
+// Slots currently showing their back. Client-only: which side you are looking
+// at is not part of the project.
+const flipped = new Set();
 
 // ---------------------------------------------------------------- data
 
@@ -116,7 +119,8 @@ function updateSlot(entry) {
   const slot = gallery.querySelector(`.card-slot[data-id="${entry.id}"]`);
   if (!slot) return;
   fillSlot(slot, entry);
-  window.fitText(slot.querySelector('.card'));
+  const card = slot.querySelector('.card');
+  if (card) window.fitText(card); // a flipped slot shows a back, not a card
 }
 
 function fillSlot(slot, entry) {
@@ -129,6 +133,15 @@ function fillSlot(slot, entry) {
   }
   const scale = document.createElement('div');
   scale.className = 'card-scale';
+
+  if (flipped.has(entry.id)) {
+    scale.appendChild(backFace(entry));
+    slot.appendChild(scale);
+    if (layouts.length > 1) slot.appendChild(layoutRow(entry));
+    if (entry.back_art_file) slot.appendChild(clearBackButton(entry));
+    return;
+  }
+
   const cardEl = document.createElement('div');
   window.CardDom.renderInto(cardEl, entry.data);
   scale.appendChild(cardEl);
@@ -141,6 +154,34 @@ function fillSlot(slot, entry) {
     slot.appendChild(clearArtButton(entry));
     enableReposition(win, entry);
   }
+}
+
+// The back of a card: its own image if it has one, otherwise a note that it
+// uses the shared art/cardback.png. A drop target either way, so dragging art
+// here assigns a back rather than a front.
+function backFace(entry) {
+  const face = document.createElement('div');
+  face.className = 'card-back drop-target';
+  face.dataset.face = 'back';
+  if (entry.back_art_file) {
+    const img = document.createElement('img');
+    img.src = `/art/raw/${encodeURIComponent(entry.back_art_file)}`;
+    img.draggable = false;
+    face.appendChild(img);
+  } else {
+    face.classList.add('is-default');
+    face.innerHTML = '<span>shared card back<br><small>drop art here to give this card its own</small></span>';
+  }
+  return face;
+}
+
+function clearBackButton(entry) {
+  const btn = document.createElement('button');
+  btn.className = 'clear-art clear-back';
+  btn.textContent = '×';
+  btn.title = `use the shared back instead of ${entry.back_art_file}`;
+  btn.addEventListener('click', () => patchCard(entry.id, { back_art_file: null }));
+  return btn;
 }
 
 // Sits under the card rather than over it: layout is a setting you go looking
@@ -168,8 +209,27 @@ function layoutRow(entry) {
   sel.addEventListener('change', () => patchCard(entry.id, { layout: sel.value }));
 
   row.append(caption, sel);
+  row.append(flipButton(entry));
   row.append(removeCardButton(entry));
   return row;
+}
+
+// Which side you are looking at, not a property of the card — so it lives in
+// `flipped` and never reaches the CSV.
+function flipButton(entry) {
+  const btn = document.createElement('button');
+  btn.className = 'flip-card';
+  const showing = flipped.has(entry.id);
+  btn.textContent = '⟳';
+  btn.title = showing ? 'Show the front' : 'Show the back';
+  btn.setAttribute('aria-label', btn.title);
+  btn.classList.toggle('is-flipped', showing);
+  btn.addEventListener('click', () => {
+    if (flipped.has(entry.id)) flipped.delete(entry.id);
+    else flipped.add(entry.id);
+    updateSlot(entry);
+  });
+  return btn;
 }
 
 // Removing a card drops the CSV row — including any display name, flavor text
@@ -266,7 +326,9 @@ function startTrayDrag(e, file) {
       : null;
     const dropOn = (el && el.closest('.drop-target')) || target;
     const slot = dropOn && dropOn.closest('.card-slot');
-    if (slot) patchCard(slot.dataset.id, { art_file: file });
+    if (!slot) return;
+    const field = dropOn.dataset.face === 'back' ? 'back_art_file' : 'art_file';
+    patchCard(slot.dataset.id, { [field]: file });
   };
   document.addEventListener('mousemove', move);
   document.addEventListener('mouseup', up);
