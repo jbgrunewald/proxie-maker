@@ -171,6 +171,14 @@ Committing `data/cards.csv` is still the real safety net; the backup is one
 step deep, and if you broke the file by hand-editing it, undoing that edit
 beats restoring a backup that predates your other edits.
 
+**One writer at a time.** That queue lives inside a single process, so it does
+not coordinate between commands: running `npm run import` while `npm run app`
+is open, or two copies of the app at once, can lose one side's changes. The
+atomic write still holds — you get one complete file or the other, never a
+corrupt one — but the loser's edits are gone. This is a deliberate trade-off
+for a local single-user tool; a lock file would buy little. Keep one command
+writing at a time, or reload the app after a CLI import.
+
 | Column | Meaning |
 |---|---|
 | `id` | Stable slug, e.g. `the-scarab-god`. Output filenames derive from it. |
