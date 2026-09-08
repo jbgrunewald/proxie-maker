@@ -36,6 +36,7 @@ function entryFor(row: CardRow) {
     id: row.id,
     qty: parseInt(row.qty, 10) || 1,
     art_file: row.art_file || null,
+    back_art_file: row.back_art_file || null,
     // The crop rectangle is shaped by this card's art window, which varies by
     // layout — so it travels with the card, not with the payload.
     art_window: layoutFor(row).art,
@@ -109,7 +110,9 @@ app.post('/api/reset', async (c) => {
 
 // Plain CSV columns the app may edit directly. Adding an editable field is a
 // line here rather than another branch in the handler.
-const EDITABLE_FIELDS = ['display_name', 'layout', 'theme', 'flavor', 'category', 'notes'] as const;
+const EDITABLE_FIELDS = [
+  'display_name', 'layout', 'theme', 'flavor', 'category', 'notes', 'back_art_file',
+] as const;
 
 // Saved crops are in source-image pixels at one art-window aspect, so anything
 // that changes which pixels are shown invalidates them.
@@ -175,7 +178,7 @@ app.delete('/api/art-files/:file', async (c) => {
   // The tray only offers unassigned art, but a stale page could still ask;
   // refuse rather than leave a card pointing at a file that no longer exists.
   const rows = await loadCards().catch(() => [] as CardRow[]);
-  const usedBy = rows.filter((r) => r.art_file === name).map((r) => r.id);
+  const usedBy = rows.filter((r) => r.art_file === name || r.back_art_file === name).map((r) => r.id);
   if (usedBy.length > 0) {
     return c.json({ error: `still assigned to ${usedBy.join(', ')}` }, 409);
   }
@@ -212,9 +215,13 @@ async function rawArtUrl(file: string): Promise<string> {
 app.get('/api/art-files', async (c) => {
   const files = await listRawImages();
   const rows = await loadCards().catch(() => [] as CardRow[]);
+  // A file backing a card is just as assigned as one fronting it: it must
+  // leave the tray, and it must not be deletable out from under the card.
   const assigned = new Map<string, string[]>();
   for (const row of rows) {
-    if (row.art_file) assigned.set(row.art_file, [...(assigned.get(row.art_file) ?? []), row.id]);
+    for (const file of [row.art_file, row.back_art_file]) {
+      if (file) assigned.set(file, [...(assigned.get(file) ?? []), row.id]);
+    }
   }
   return c.json({
     files: await Promise.all(

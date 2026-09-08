@@ -17,6 +17,8 @@ export interface CardRow {
   original_card: string;
   display_name: string;
   art_file: string;
+  /** Optional per-card back image; blank means the shared art/cardback.png. */
+  back_art_file: string;
   crop_x: string;
   crop_y: string;
   crop_w: string;
@@ -30,7 +32,7 @@ export interface CardRow {
 }
 
 const COLUMNS: (keyof CardRow)[] = [
-  'id', 'original_card', 'display_name', 'art_file',
+  'id', 'original_card', 'display_name', 'art_file', 'back_art_file',
   'crop_x', 'crop_y', 'crop_w', 'crop_h',
   'layout', 'theme', 'category', 'qty', 'flavor', 'notes',
 ];
@@ -58,6 +60,7 @@ export function emptyRow(originalCard: string, qty: number): CardRow {
     original_card: originalCard,
     display_name: '',
     art_file: '',
+    back_art_file: '',
     crop_x: '', crop_y: '', crop_w: '', crop_h: '',
     layout: '',
     theme: '',

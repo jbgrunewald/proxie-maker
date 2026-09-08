@@ -224,6 +224,46 @@ button:hover { filter: brightness(1.15); }
 
 .remove-card:hover { color: #dfe2e6; border-color: #6b4a4a; }
 
+.flip-card {
+  padding: 4px 9px;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 6px;
+  background: #2a2e36;
+  border: 1px solid #3a3f49;
+  color: #9aa0aa;
+}
+
+.flip-card:hover { color: #dfe2e6; border-color: #4a7cb5; }
+.flip-card.is-flipped { background: #2f3d4e; border-color: #4a7cb5; color: #cfe0f2; }
+
+/* The back fills the same box the scaled card front occupies. */
+.card-back {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #17191d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.card-back img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.card-back.is-default {
+  border: 2px dashed #3a3f49;
+  color: #8b8f99;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.card-back.is-default small { color: #6c7079; font-size: 11px; }
+.card-back.drop-hover { outline: 4px solid #4a7cb5; outline-offset: -4px; }
+
+.clear-back { top: 12px; left: auto; right: 12px; }
+
 #gallery {
   flex: 1;
   display: flex;
