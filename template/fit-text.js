@@ -15,6 +15,12 @@ window.fitText = (root = document) => {
   const bar = name.parentElement;
   const cost = root.querySelector('.mana-cost');
   let nameSize = 33;
+  // Start from the full size every time, as the rules text above does. Without
+  // this the title could only ever shrink: the first fit runs before the mana
+  // font has loaded, so the cost measures wide and the name steps down to the
+  // floor, and the refit that follows font loading then finds it already
+  // fitting and leaves it there.
+  name.style.fontSize = nameSize + 'px';
   const fits = () => name.scrollWidth + cost.offsetWidth <= bar.clientWidth - 44;
   while (!fits() && nameSize > 18) {
     nameSize -= 1;
