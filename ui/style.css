@@ -106,6 +106,7 @@ button:hover { filter: brightness(1.15); }
 #art-list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 
 .thumb {
+  position: relative;
   cursor: grab;
   border: 1px solid #2e323a;
   border-radius: 8px;
@@ -114,7 +115,6 @@ button:hover { filter: brightness(1.15); }
   user-select: none;
 }
 
-.thumb { position: relative; }
 .thumb img { width: 100%; height: 90px; object-fit: cover; display: block; pointer-events: none; }
 
 .delete-art {
@@ -158,7 +158,8 @@ button:hover { filter: brightness(1.15); }
 
 .drag-ghost img { width: 100%; display: block; }
 
-.art-window.drop-hover { outline: 4px solid #4a7cb5; outline-offset: -4px; }
+/* Every drop target highlights the same way: the art window and the card back. */
+.drop-target.drop-hover { outline: 4px solid #4a7cb5; outline-offset: -4px; }
 .art-window.repositionable { cursor: grab; }
 .art-window.repositionable:active { cursor: grabbing; }
 .art-window { position: relative; }
@@ -260,7 +261,6 @@ button:hover { filter: brightness(1.15); }
 }
 
 .card-back.is-default small { color: #6c7079; font-size: 11px; }
-.card-back.drop-hover { outline: 4px solid #4a7cb5; outline-offset: -4px; }
 
 .clear-back { top: 12px; left: auto; right: 12px; }
 

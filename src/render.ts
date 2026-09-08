@@ -6,6 +6,7 @@ import { loadCards, ROOT, type CardRow } from './project.js';
 import { loadOracle, lookupCard } from './scryfall.js';
 import { buildCardData, layoutFor } from './carddata.js';
 import { ensurePlaceholderArt } from './placeholder.js';
+import { printFormatProblem, toPrintPng } from './prep.js';
 
 // Print spec — verified numbers from the production spec, do not recompute.
 const CARD_W = 815;
@@ -15,16 +16,32 @@ const CARD_H = 1110;
 async function resolveArt(row: CardRow): Promise<Buffer> {
   const { art } = layoutFor(row);
   if (row.art_file) {
-    const src = sharp(path.join(ROOT, 'art/raw', row.art_file));
+    const file = path.join(ROOT, 'art/raw', row.art_file);
+    const src = sharp(file);
     if (row.crop_w && row.crop_h) {
-      // Extract-then-resize ordering is required by the print spec.
-      src.extract({
+      // A crop is stored in the source image's pixels, and the source can be
+      // replaced with a smaller file under the same name. sharp would then
+      // abort the whole run with "bad extract area", so check it here and fall
+      // back to the centered crop instead of failing the card.
+      const meta = await sharp(file).metadata();
+      const crop = {
         left: parseInt(row.crop_x || '0', 10),
         top: parseInt(row.crop_y || '0', 10),
         width: parseInt(row.crop_w, 10),
         height: parseInt(row.crop_h, 10),
-      });
-      return src.resize(art.w, art.h).png().toBuffer();
+      };
+      const fits =
+        meta.width != null && meta.height != null &&
+        crop.left >= 0 && crop.top >= 0 && crop.width > 0 && crop.height > 0 &&
+        crop.left + crop.width <= meta.width && crop.top + crop.height <= meta.height;
+      if (fits) {
+        // Extract-then-resize ordering is required by the print spec.
+        return src.extract(crop).resize(art.w, art.h).png().toBuffer();
+      }
+      console.warn(
+        `     ${row.id}: saved crop does not fit ${row.art_file} (${meta.width}×${meta.height}) — ` +
+          're-cropping centered. Adjust it in the app to save a new one.',
+      );
     }
     return src.resize(art.w, art.h, { fit: 'cover' }).png().toBuffer();
   }
@@ -44,6 +61,7 @@ async function main() {
 
   let failed = false;
   for (const row of rows) {
+   try {
     const card = lookupCard(row.original_card); // throws loudly on a bad name
     const artData = `data:image/png;base64,${(await resolveArt(row)).toString('base64')}`;
     const cardData = buildCardData(row, card, artData);
@@ -92,14 +110,12 @@ async function main() {
     }
 
     const shot = await page.locator('#card').screenshot();
-    // MPC format gate: sRGB, no alpha.
-    const png = await sharp(shot).removeAlpha().toColourspace('srgb').png({ palette: false }).toBuffer();
+    const png = await toPrintPng(shot).toBuffer();
     await writeFile(path.join(outDir, `${row.id}.png`), png);
 
     const meta = await sharp(png).metadata();
-    if (meta.width !== CARD_W || meta.height !== CARD_H || meta.channels !== 3 || meta.space !== 'srgb') {
-      problems.push(`wrong format for print: ${meta.width}×${meta.height} ${meta.space} ch=${meta.channels}`);
-    }
+    const formatProblem = printFormatProblem(meta);
+    if (formatProblem) problems.push(formatProblem);
 
     const ok = problems.length === 0;
     if (!ok) failed = true;
@@ -108,36 +124,37 @@ async function main() {
         `${meta.width}×${meta.height} ${meta.space} ch=${meta.channels} rules=${sizes.rulesSize}px`,
     );
     for (const problem of problems) console.error(`       ${problem}`);
+   } catch (e: any) {
+    // The output directory was cleared before this loop, so aborting here would
+    // throw away every card already rendered. Fail this one and keep going.
+    failed = true;
+    console.log(`FAIL ${row.id.padEnd(28)}`);
+    console.error(`       ${e.message}`);
+   }
   }
 
-  // Per-card backs. These are plain images fitted to the whole card rather than
-  // template renders, so they skip the browser — but they go through the same
-  // format gate, and land in out/cards/ so `npm run prep` picks them up with
-  // everything else.
+  await browser.close(); // the back pass below is pure sharp work
+
+  // Per-card backs. Plain images fitted to the whole card rather than template
+  // renders, so they skip the browser — but they go through the same format
+  // gate, and land in out/cards/ so `npm run prep` picks them up with the rest.
+  // Stage 2 moves these through the template; see docs/card-backs.md.
   for (const row of rows.filter((r) => r.back_art_file)) {
-    const problems: string[] = [];
-    const png = await sharp(path.join(ROOT, 'art/raw', row.back_art_file))
-      .resize(CARD_W, CARD_H, { fit: 'cover' })
-      .removeAlpha()
-      .toColourspace('srgb')
-      .png({ palette: false })
-      .toBuffer();
+    const png = await toPrintPng(
+      sharp(path.join(ROOT, 'art/raw', row.back_art_file)).resize(CARD_W, CARD_H, { fit: 'cover' }),
+    ).toBuffer();
     await writeFile(path.join(outDir, `${row.id}-back.png`), png);
 
     const meta = await sharp(png).metadata();
-    if (meta.width !== CARD_W || meta.height !== CARD_H || meta.channels !== 3 || meta.space !== 'srgb') {
-      problems.push(`wrong format for print: ${meta.width}×${meta.height} ${meta.space} ch=${meta.channels}`);
-    }
-    const ok = problems.length === 0;
-    if (!ok) failed = true;
+    const problem = printFormatProblem(meta);
+    if (problem) failed = true;
     console.log(
-      `${ok ? 'ok  ' : 'FAIL'} ${(row.id + '-back').padEnd(28)} ${'back'.padEnd(9)} ` +
+      `${problem ? 'FAIL' : 'ok  '} ${(row.id + '-back').padEnd(28)} ${'back'.padEnd(9)} ` +
         `${meta.width}×${meta.height} ${meta.space} ch=${meta.channels} ${row.back_art_file}`,
     );
-    for (const problem of problems) console.error(`       ${problem}`);
+    if (problem) console.error(`       ${problem}`);
   }
 
-  await browser.close();
 
   const sheet = `<!doctype html><meta charset="utf-8"><title>proxie-maker — contact sheet</title>
 <body style="background:#222;margin:24px;display:flex;flex-wrap:wrap;gap:24px">

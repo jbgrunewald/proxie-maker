@@ -46,10 +46,9 @@
     // Layout is a class plus the art window's size as custom properties, so
     // card.css never repeats the numbers in LAYOUTS (src/carddata.ts).
     root.className = `card theme-${card.theme} layout-${card.layout || 'classic'}`;
-    if (card.art) {
-      root.style.setProperty('--art-w', card.art.w + 'px');
-      root.style.setProperty('--art-h', card.art.h + 'px');
-    }
+    // Only the height is consumed by the stylesheet; the width comes from the
+    // frame, and LAYOUTS records it so render.ts can verify the result.
+    if (card.art) root.style.setProperty('--art-h', card.art.h + 'px');
     root.innerHTML = MARKUP;
     const q = (sel) => root.querySelector(sel);
 

@@ -1,6 +1,7 @@
 /* Geometry is fixed by the print spec: 815×1110 px @ 300 DPI (69×94 mm with bleed).
    The outer 62px is border + bleed; trim falls ~35px in, safe area ~83px in.
-   If ART_W/ART_H change here, mirror them in src/render.ts. */
+   Art window sizes live in LAYOUTS (src/carddata.ts) and arrive as custom
+   properties; `npm run render` measures the result and fails on disagreement. */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -12,11 +13,12 @@ body { background: #444; }
   background: #0a0a0c;            /* border color, extends into bleed */
   position: relative;
 
-  /* Art window CONTENT box. card-dom.js overrides these per layout from
-     LAYOUTS in src/carddata.ts; these defaults are the classic layout, so the
-     card still renders if it is drawn without card data. render.ts measures
-     the result and fails if it disagrees with the table. */
-  --art-w: 667px;
+  /* Art window content height, overridden per layout by card-dom.js from
+     LAYOUTS in src/carddata.ts. This default is the classic layout, so the card
+     still renders if drawn without card data; render.ts measures the result and
+     fails if it disagrees with the table. The window's WIDTH is not set here —
+     it comes from .frame's own width, which is why the table records it and the
+     render-time check exists to catch drift. */
   --art-h: 491px;
 }
 

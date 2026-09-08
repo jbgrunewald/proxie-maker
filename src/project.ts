@@ -96,3 +96,31 @@ export async function resetProject(): Promise<void> {
   await Promise.all(images.map((f) => rm(path.join(RAW_DIR, f), { force: true, recursive: true })));
   await saveCards([]);
 }
+
+/**
+ * Serialise a read-modify-write of the CSV.
+ *
+ * The app edits the whole file for a one-field change, so two overlapping
+ * requests — a debounced crop save landing while an art drop is in flight —
+ * would both read the same pre-state and the second write would silently drop
+ * the first one's change. Cheap to avoid: one queue, since this is a
+ * single-process local tool.
+ *
+ * `fn` mutates the rows it is given. Return `null` to leave the file alone
+ * (nothing matched, say); anything else is saved.
+ */
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+export function updateCards<T>(fn: (rows: CardRow[]) => T | Promise<T>): Promise<T> {
+  const run = writeQueue.then(async () => {
+    const rows = await loadCards();
+    const result = await fn(rows);
+    if (result !== null) await saveCards(rows);
+    return result;
+  });
+  writeQueue = run.then(
+    () => undefined,
+    () => undefined, // a failed edit must not wedge the queue
+  );
+  return run;
+}
