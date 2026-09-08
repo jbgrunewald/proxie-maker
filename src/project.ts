@@ -1,4 +1,4 @@
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, open, readdir, readFile, rename, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'csv-parse/sync';
@@ -6,6 +6,17 @@ import { stringify } from 'csv-stringify/sync';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const CSV_PATH = path.join(ROOT, 'data/cards.csv');
+
+const RECOVERY_HINT =
+  'If you edited it by hand, undo that edit — it is the only copy of your work.\n' +
+  'data/cards.csv.bak holds the file as it was before the app last removed cards.';
+/**
+ * The previous contents of the project file, kept because this CSV *is* the
+ * project: there is no database behind it, and several actions in the app
+ * rewrite the whole file. One level of undo for a mis-click, a bad re-import
+ * or a Start over. Not a substitute for committing the CSV.
+ */
+export const CSV_BACKUP_PATH = `${CSV_PATH}.bak`;
 export const RAW_DIR = path.join(ROOT, 'art/raw');
 
 /** What counts as an uploaded art file, for both the tray and cleanup. */
@@ -45,13 +56,62 @@ export function slugify(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export async function loadCards(csvPath = CSV_PATH): Promise<CardRow[]> {
-  const text = await readFile(csvPath, 'utf8');
-  return parse(text, { columns: true, skip_empty_lines: true, trim: true }) as CardRow[];
+export async function loadCards(): Promise<CardRow[]> {
+  const text = await readFile(CSV_PATH, 'utf8');
+
+  let rows: CardRow[];
+  try {
+    rows = parse(text, { columns: true, skip_empty_lines: true, trim: true }) as CardRow[];
+  } catch (e: any) {
+    throw new Error(`data/cards.csv could not be read: ${e.message}\n${RECOVERY_HINT}`);
+  }
+
+  // An id and a name are what make a row a card — the id drives every output
+  // filename. Counted in rows rather than lines, because a quoted flavor field
+  // can span several lines.
+  const i = rows.findIndex((r) => !r.id?.trim() || !r.original_card?.trim());
+  if (i !== -1) {
+    throw new Error(`data/cards.csv row ${i + 1} has no id or original_card.\n${RECOVERY_HINT}`);
+  }
+  return rows;
 }
 
-export async function saveCards(rows: CardRow[], csvPath = CSV_PATH): Promise<void> {
-  await writeFile(csvPath, stringify(rows, { header: true, columns: COLUMNS }));
+export async function saveCards(rows: CardRow[]): Promise<void> {
+  // Back up only when this save drops cards. Copying on every save would make
+  // the backup one *write* deep, and the app writes constantly — a single crop
+  // drag after an accidental Start over would consume the undo. Adding cards,
+  // assigning art and moving crops are all recoverable by doing them again;
+  // losing rows is not.
+  const removesRows = await savesFewerCards(rows);
+  if (removesRows) await copyFile(CSV_PATH, CSV_BACKUP_PATH).catch(() => {});
+
+  // Write beside the target, flush it, then rename over. A plain write that
+  // dies partway truncates the only copy of the project. The tmp name is
+  // unique because a second writer sharing it would have this rename install
+  // *their* half-written buffer — and report success.
+  const tmp = `${CSV_PATH}.${process.pid}.${tmpCounter++}.tmp`;
+  const fh = await open(tmp, 'w');
+  try {
+    await fh.writeFile(stringify(rows, { header: true, columns: COLUMNS }));
+    await fh.sync(); // else the rename can outlive the data on power loss
+  } finally {
+    await fh.close();
+  }
+  await rename(tmp, CSV_PATH);
+}
+
+let tmpCounter = 0;
+
+/** Whether writing `next` would drop cards that are on disk now. */
+async function savesFewerCards(next: CardRow[]): Promise<boolean> {
+  let current: CardRow[];
+  try {
+    current = await loadCards();
+  } catch {
+    return false; // no readable file to lose anything from
+  }
+  const keeping = new Set(next.map((r) => r.id));
+  return current.some((r) => !keeping.has(r.id));
 }
 
 export function emptyRow(originalCard: string, qty: number): CardRow {
@@ -94,7 +154,12 @@ export async function resetProject(): Promise<void> {
   // report a partial reset instead of leaving a deckless project behind.
   const images = await listRawImages();
   await Promise.all(images.map((f) => rm(path.join(RAW_DIR, f), { force: true, recursive: true })));
-  await saveCards([]);
+  // Through the queue, so a crop save already in flight cannot land after this
+  // and resurrect the deck.
+  await updateCards((rows) => {
+    rows.length = 0;
+    return true;
+  });
 }
 
 /**
@@ -113,7 +178,16 @@ let writeQueue: Promise<unknown> = Promise.resolve();
 
 export function updateCards<T>(fn: (rows: CardRow[]) => T | Promise<T>): Promise<T> {
   const run = writeQueue.then(async () => {
-    const rows = await loadCards();
+    let rows: CardRow[];
+    try {
+      rows = await loadCards();
+    } catch (e: any) {
+      // No file yet is an empty project. A file that exists but cannot be read
+      // is not: writing over it would destroy the user's only copy, and take
+      // the backup with it.
+      if (e?.code !== 'ENOENT') throw e;
+      rows = [];
+    }
     const result = await fn(rows);
     if (result !== null) await saveCards(rows);
     return result;

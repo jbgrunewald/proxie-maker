@@ -2,3 +2,5 @@ node_modules/
 art/
 out/
 data/oracle-cards.jsonl
+data/cards.csv.bak
+data/cards.csv.tmp

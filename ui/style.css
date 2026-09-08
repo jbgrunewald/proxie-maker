@@ -71,6 +71,20 @@ button:hover { filter: brightness(1.15); }
 #import-status { margin-top: 12px; font-size: 13px; white-space: pre-line; }
 #import-status .err { color: #e08585; }
 
+#project-error {
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 14px 18px;
+  border: 1px solid #6b4a4a;
+  border-radius: 10px;
+  background: #2a1d1d;
+  color: #e6b3b3;
+  font-size: 13px;
+  white-space: pre-line;
+}
+
+#project-error[hidden] { display: none; }
+
 #workbench { display: flex; align-items: flex-start; }
 #workbench[hidden] { display: none; }
 
