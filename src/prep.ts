@@ -1,7 +1,23 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import sharp from 'sharp';
+import sharp, { type Metadata, type Sharp } from 'sharp';
 import { ROOT } from './project.js';
+
+/** MPC's format requirements. Returns why a buffer fails them, or null. */
+export function printFormatProblem(meta: Metadata): string | null {
+  const ok = meta.width === 815 && meta.height === 1110 && meta.channels === 3 && meta.space === 'srgb';
+  return ok ? null : `wrong format for print: ${meta.width}×${meta.height} ${meta.space} ch=${meta.channels}`;
+}
+
+/**
+ * The encode every stage ends with: sRGB, no alpha, no palette. Takes a path,
+ * a buffer, or a pipeline already part-built, so callers that resize first can
+ * chain into it rather than restating the encode.
+ */
+export function toPrintPng(input: Buffer | string | Sharp): Sharp {
+  const img = typeof input === 'string' || Buffer.isBuffer(input) ? sharp(input) : input;
+  return img.removeAlpha().toColourspace('srgb').png({ palette: false });
+}
 
 // MPC prints noticeably darker than screen. Order matters and is fixed by the
 // production spec: sharpen → lift shadows ~10% → sRGB, no alpha.
@@ -35,8 +51,8 @@ async function main() {
     const prepped = await prepForPrint(await readFile(path.join(inDir, file)));
     await writeFile(path.join(outDir, file), prepped);
     const meta = await sharp(prepped).metadata();
-    const ok =
-      meta.width === 815 && meta.height === 1110 && meta.channels === 3 && meta.space === 'srgb';
+    const problem = printFormatProblem(meta);
+    const ok = problem === null;
     if (!ok) failed = true;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${file.padEnd(32)} ${meta.width}×${meta.height} ${meta.space} ch=${meta.channels}`);
   }

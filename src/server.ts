@@ -6,12 +6,12 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
 import {
-  loadCards, saveCards, listRawImages, resetProject,
+  loadCards, saveCards, updateCards, listRawImages, resetProject,
   IMAGE_EXT, RAW_DIR, ROOT, type CardRow,
 } from './project.js';
 import { loadOracle, lookupCard } from './scryfall.js';
 import { importDecklist } from './importer.js';
-import { buildCardData, layoutFor, LAYOUTS } from './carddata.js';
+import { buildCardData, LAYOUTS } from './carddata.js';
 import { ensurePlaceholderArt } from './placeholder.js';
 
 const PORT = 5987;
@@ -21,7 +21,33 @@ const PORT = 5987;
 // out from under someone mid-crop. `npm run dev` sets this.
 const LIVE_RELOAD = process.env.PROXIE_LIVERELOAD === '1';
 
-function entryFor(row: CardRow) {
+/**
+ * Which cards use each art file. A file backing a card is as assigned as one
+ * fronting it: it must leave the tray, and must not be deletable out from
+ * under the card. One place knows that, so a third side stays a one-line change.
+ */
+/**
+ * A raw-art URL stamped with the file's mtime. Art is served with ordinary
+ * caching (it is far too big to revalidate on every load), so without this a
+ * file replaced under the same name — routine after a reset — would keep
+ * showing the old image until a hard reload.
+ */
+async function rawArtUrl(file: string): Promise<string> {
+  const v = await stat(path.join(RAW_DIR, file)).then((st) => st.mtimeMs).catch(() => 0);
+  return `/art/raw/${encodeURIComponent(file)}?v=${Math.round(v)}`;
+}
+
+function assignedArt(rows: CardRow[]): Map<string, string[]> {
+  const assigned = new Map<string, string[]>();
+  for (const row of rows) {
+    for (const file of [row.art_file, row.back_art_file]) {
+      if (file) assigned.set(file, [...(assigned.get(file) ?? []), row.id]);
+    }
+  }
+  return assigned;
+}
+
+async function entryFor(row: CardRow) {
   const card = lookupCard(row.original_card);
   const crop =
     row.crop_w && row.crop_h
@@ -37,9 +63,9 @@ function entryFor(row: CardRow) {
     qty: parseInt(row.qty, 10) || 1,
     art_file: row.art_file || null,
     back_art_file: row.back_art_file || null,
-    // The crop rectangle is shaped by this card's art window, which varies by
-    // layout — so it travels with the card, not with the payload.
-    art_window: layoutFor(row).art,
+    // Stamped like the tray's URLs so replacing a file under the same name is
+    // visible, rather than the browser reusing the cached image.
+    back_art_url: row.back_art_file ? await rawArtUrl(row.back_art_file) : null,
     crop,
     // Cache-bust so an art change is never masked by the browser cache.
     data: buildCardData(row, card, `/api/art/${row.id}?v=${encodeURIComponent(row.art_file || 'placeholder')}`),
@@ -59,7 +85,7 @@ async function cardsPayload() {
   const errors: string[] = [];
   for (const row of rows) {
     try {
-      cards.push(entryFor(row));
+      cards.push(await entryFor(row));
     } catch (e: any) {
       errors.push(e.message);
     }
@@ -111,7 +137,7 @@ app.post('/api/reset', async (c) => {
 // Plain CSV columns the app may edit directly. Adding an editable field is a
 // line here rather than another branch in the handler.
 const EDITABLE_FIELDS = [
-  'display_name', 'layout', 'theme', 'flavor', 'category', 'notes', 'back_art_file',
+  'art_file', 'back_art_file', 'display_name', 'layout', 'theme', 'flavor', 'category', 'notes',
 ] as const;
 
 // Saved crops are in source-image pixels at one art-window aspect, so anything
@@ -121,39 +147,38 @@ const CROP_INVALIDATING = new Set<string>(['art_file', 'layout']);
 // Edit one card. Writes straight to the CSV so the next `npm run render` uses it.
 app.patch('/api/cards/:id', async (c) => {
   const body = await c.req.json();
-  const rows = await loadCards();
-  const row = rows.find((r) => r.id === c.req.param('id'));
-  if (!row) return c.notFound();
 
-  const clearCrop = () => {
-    row.crop_x = row.crop_y = row.crop_w = row.crop_h = '';
-  };
+  const entry = await updateCards(async (rows) => {
+    const row = rows.find((r) => r.id === c.req.param('id'));
+    if (!row) return null;
 
-  for (const field of EDITABLE_FIELDS) {
-    if (!(field in body)) continue;
-    row[field] = body[field] == null ? '' : String(body[field]);
-    if (CROP_INVALIDATING.has(field)) clearCrop();
-  }
+    const clearCrop = () => {
+      row.crop_x = row.crop_y = row.crop_w = row.crop_h = '';
+    };
 
-  if ('art_file' in body) {
-    row.art_file = body.art_file ?? '';
-    clearCrop();
-  }
-  if ('crop' in body) {
-    if (body.crop) {
-      row.crop_x = String(Math.round(body.crop.x));
-      row.crop_y = String(Math.round(body.crop.y));
-      row.crop_w = String(Math.round(body.crop.w));
-      row.crop_h = String(Math.round(body.crop.h));
-    } else {
-      clearCrop();
+    for (const field of EDITABLE_FIELDS) {
+      if (!(field in body)) continue;
+      row[field] = body[field] == null ? '' : String(body[field]);
+      if (CROP_INVALIDATING.has(field)) clearCrop();
     }
-  }
 
-  // entryFor throws on an unknown layout, which would leave the CSV holding a
-  // value that cannot render — validate before saving.
-  const entry = entryFor(row);
-  await saveCards(rows);
+    if ('crop' in body) {
+      if (body.crop) {
+        row.crop_x = String(Math.round(body.crop.x));
+        row.crop_y = String(Math.round(body.crop.y));
+        row.crop_w = String(Math.round(body.crop.w));
+        row.crop_h = String(Math.round(body.crop.h));
+      } else {
+        clearCrop();
+      }
+    }
+
+    // Throws on an unknown layout, which would otherwise leave the CSV holding
+    // a value that cannot render. Throwing here aborts before the queue saves.
+    return entryFor(row);
+  });
+
+  if (!entry) return c.notFound();
   return c.json(entry);
 });
 
@@ -161,11 +186,12 @@ app.patch('/api/cards/:id', async (c) => {
 // row is gone, so nothing references the file, and it reappears in the tray for
 // use elsewhere. Deleting art is the tray's job, not this one.
 app.delete('/api/cards/:id', async (c) => {
-  const rows = await loadCards();
-  const i = rows.findIndex((r) => r.id === c.req.param('id'));
-  if (i === -1) return c.notFound();
-  const [removed] = rows.splice(i, 1);
-  await saveCards(rows);
+  const removed = await updateCards((rows) => {
+    const i = rows.findIndex((r) => r.id === c.req.param('id'));
+    if (i === -1) return null;
+    return rows.splice(i, 1)[0];
+  });
+  if (!removed) return c.notFound();
   return c.json({ removed: removed.display_name || removed.original_card });
 });
 
@@ -178,7 +204,7 @@ app.delete('/api/art-files/:file', async (c) => {
   // The tray only offers unassigned art, but a stale page could still ask;
   // refuse rather than leave a card pointing at a file that no longer exists.
   const rows = await loadCards().catch(() => [] as CardRow[]);
-  const usedBy = rows.filter((r) => r.art_file === name || r.back_art_file === name).map((r) => r.id);
+  const usedBy = assignedArt(rows).get(name) ?? [];
   if (usedBy.length > 0) {
     return c.json({ error: `still assigned to ${usedBy.join(', ')}` }, 409);
   }
@@ -201,28 +227,10 @@ app.post('/api/art-upload', async (c) => {
   return c.json({ saved });
 });
 
-/**
- * A raw-art URL stamped with the file's mtime. Art is served with ordinary
- * caching (it is far too big to revalidate on every load), so without this a
- * file replaced under the same name — routine after a reset — would keep
- * showing the old image until a hard reload.
- */
-async function rawArtUrl(file: string): Promise<string> {
-  const v = await stat(path.join(RAW_DIR, file)).then((st) => st.mtimeMs).catch(() => 0);
-  return `/art/raw/${encodeURIComponent(file)}?v=${Math.round(v)}`;
-}
-
 app.get('/api/art-files', async (c) => {
   const files = await listRawImages();
   const rows = await loadCards().catch(() => [] as CardRow[]);
-  // A file backing a card is just as assigned as one fronting it: it must
-  // leave the tray, and it must not be deletable out from under the card.
-  const assigned = new Map<string, string[]>();
-  for (const row of rows) {
-    for (const file of [row.art_file, row.back_art_file]) {
-      if (file) assigned.set(file, [...(assigned.get(file) ?? []), row.id]);
-    }
-  }
+  const assigned = assignedArt(rows);
   return c.json({
     files: await Promise.all(
       files.map(async (f) => ({ file: f, assigned_to: assigned.get(f) ?? [], url: await rawArtUrl(f) }))

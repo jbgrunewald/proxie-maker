@@ -66,10 +66,34 @@ name, type line, rules text, colors and P/T — not just an image.
   template, so the back gets the same frame, text fitting and print gate.
 - `src/prep.ts` needs no change: it globs `out/cards/*.png`, so backs are
   already carried through print prep.
-- The back face needs its own art and crop. Planned as `back_crop_x/y/w/h`
-  alongside `back_art_file` rather than a second CSV row, because one row per
-  distinct card is an invariant that import, remove and the order slot
-  arithmetic all rely on.
+- The back face needs its own art and crop.
+
+**Stage 2 starts with a refactor, decided after reviewing stage 1.** Stage 1
+added `back_art_file` as a sibling of `art_file`, and that model is already
+leaking: `src/server.ts` branches on the pair in three places, `ui/app.js` had
+two near-identical clear buttons and two slot builders, and `src/render.ts` has
+a second image path. Adding `back_crop_x/y/w/h` the same way would double
+`resolveArt`, the crop construction in `entryFor`, `CROP_INVALIDATING`, and
+`enableReposition` as well.
+
+The missing concept is a **face**, not a row — one row per distinct card stays,
+and the CSV stays flat and hand-editable with `back_`-prefixed columns. What
+changes is that exactly one accessor knows the mapping:
+
+```ts
+faceOf(row, 'front' | 'back') -> { art_file, crop, layout }
+```
+
+Consumers then take a side instead of branching on a field name. The test that
+it worked is mechanical: the `[row.art_file, row.back_art_file]` loop in
+`assignedArt` becomes a loop over sides, and the back render loop in
+`render.ts` becomes the same body as the front.
+
+Related: a back **is** a full-card face — `render.ts` hardcodes `CARD_W, CARD_H`
+for it, which is exactly what `LAYOUTS['full-art'].art` already declares. Stage
+2 should route backs through the card template like any other face rather than
+keeping a separate sharp path, which also gives them the text-fit and
+art-window checks the fronts get.
 
 ### Stage 3 — the double-faced UI 🔜
 

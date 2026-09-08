@@ -12,8 +12,8 @@ const trayEmpty = document.getElementById('tray-empty');
 
 const CARD_SCALE = 0.35;
 // The art window's shape comes from the card's layout, so it is per card —
-// each entry carries its own art_window from the server.
-const cropAspect = (entry) => entry.art_window.w / entry.art_window.h;
+// buildCardData puts the layout's box on entry.data.art.
+const cropAspect = (entry) => entry.data.art.w / entry.data.art.h;
 let layouts = ['classic']; // replaced by the server's list on first load
 // Slots currently showing their back. Client-only: which side you are looking
 // at is not part of the project.
@@ -80,13 +80,20 @@ async function patchCard(id, body) {
   });
   const entry = await res.json();
   updateSlot(entry);
-  refreshTray();
+  // Only an art assignment can change what the tray holds — a crop cannot, and
+  // crops are saved repeatedly while dragging and zooming.
+  if ('art_file' in body || 'back_art_file' in body) refreshTray();
+  return entry;
 }
 
 // ---------------------------------------------------------------- gallery
 
 function renderGallery(payload) {
   layouts = payload.layouts ?? layouts;
+  // Forget flips for cards that no longer exist, so a re-imported name does
+  // not come back already flipped.
+  const live = new Set(payload.cards.map((c) => c.id));
+  for (const id of [...flipped]) if (!live.has(id)) flipped.delete(id);
   gallery.innerHTML = '';
   for (const msg of payload.errors ?? []) {
     const div = document.createElement('div');
@@ -119,11 +126,14 @@ function updateSlot(entry) {
   const slot = gallery.querySelector(`.card-slot[data-id="${entry.id}"]`);
   if (!slot) return;
   fillSlot(slot, entry);
-  const card = slot.querySelector('.card');
-  if (card) window.fitText(card); // a flipped slot shows a back, not a card
+  for (const card of slot.querySelectorAll('.card')) window.fitText(card);
 }
 
 function fillSlot(slot, entry) {
+  // Only this slot's buttons: they are about to be detached and would be
+  // stranded in `armed`. Disarming page-wide would cancel a confirmation the
+  // user has pending somewhere else.
+  for (const btn of [...armed]) if (slot.contains(btn)) disarm(btn);
   slot.innerHTML = '';
   if (entry.qty > 1) {
     const badge = document.createElement('div');
@@ -133,27 +143,24 @@ function fillSlot(slot, entry) {
   }
   const scale = document.createElement('div');
   scale.className = 'card-scale';
+  const showingBack = flipped.has(entry.id);
 
-  if (flipped.has(entry.id)) {
+  let win = null;
+  if (showingBack) {
     scale.appendChild(backFace(entry));
-    slot.appendChild(scale);
-    if (layouts.length > 1) slot.appendChild(layoutRow(entry));
-    if (entry.back_art_file) slot.appendChild(clearBackButton(entry));
-    return;
+  } else {
+    const cardEl = document.createElement('div');
+    window.CardDom.renderInto(cardEl, entry.data);
+    scale.appendChild(cardEl);
+    win = cardEl.querySelector('.art-window');
+    win.classList.add('drop-target');
   }
-
-  const cardEl = document.createElement('div');
-  window.CardDom.renderInto(cardEl, entry.data);
-  scale.appendChild(cardEl);
   slot.appendChild(scale);
-
-  const win = cardEl.querySelector('.art-window');
-  win.classList.add('drop-target');
   if (layouts.length > 1) slot.appendChild(layoutRow(entry));
-  if (entry.art_file) {
-    slot.appendChild(clearArtButton(entry));
-    enableReposition(win, entry);
-  }
+
+  const field = showingBack ? 'back_art_file' : 'art_file';
+  if (entry[field]) slot.appendChild(clearButton(entry, field));
+  if (win && entry.art_file) enableReposition(win, entry);
 }
 
 // The back of a card: its own image if it has one, otherwise a note that it
@@ -165,7 +172,7 @@ function backFace(entry) {
   face.dataset.face = 'back';
   if (entry.back_art_file) {
     const img = document.createElement('img');
-    img.src = `/art/raw/${encodeURIComponent(entry.back_art_file)}`;
+    img.src = entry.back_art_url;
     img.draggable = false;
     face.appendChild(img);
   } else {
@@ -175,14 +182,7 @@ function backFace(entry) {
   return face;
 }
 
-function clearBackButton(entry) {
-  const btn = document.createElement('button');
-  btn.className = 'clear-art clear-back';
-  btn.textContent = '×';
-  btn.title = `use the shared back instead of ${entry.back_art_file}`;
-  btn.addEventListener('click', () => patchCard(entry.id, { back_art_file: null }));
-  return btn;
-}
+
 
 // Sits under the card rather than over it: layout is a setting you go looking
 // for, unlike the × on the art, which is destructive and stays out of the way.
@@ -281,12 +281,16 @@ function deleteArtButton(file) {
   });
 }
 
-function clearArtButton(entry) {
+// Unassigns one side's art. The back keeps an extra class for positioning only.
+function clearButton(entry, field) {
+  const back = field === 'back_art_file';
   const btn = document.createElement('button');
-  btn.className = 'clear-art';
+  btn.className = back ? 'clear-art clear-back' : 'clear-art';
   btn.textContent = '×';
-  btn.title = `remove ${entry.art_file}`;
-  btn.addEventListener('click', () => patchCard(entry.id, { art_file: null }));
+  btn.title = back
+    ? `use the shared back instead of ${entry.back_art_file}`
+    : `remove ${entry.art_file}`;
+  btn.addEventListener('click', () => patchCard(entry.id, { [field]: null }));
   return btn;
 }
 
@@ -482,7 +486,14 @@ document.getElementById('import-btn').addEventListener('click', async () => {
     return;
   }
   const n = result.unresolved?.length ?? 0;
+  const gone = result.removed ?? [];
   let msg = `Imported ${result.imported} cards (${result.slots} slots).`;
+  if (gone.length) {
+    // These rows carried art assignments, crops and hand-edited names. The CLI
+    // has always reported them; the app used to drop them silently.
+    msg += `\n${gone.length} card${gone.length === 1 ? '' : 's'} removed, along with `
+      + `${gone.length === 1 ? 'its' : 'their'} art and any edits: ${gone.join(', ')}`;
+  }
   if (n) {
     // These rows are in the CSV but will not render, so say so rather than
     // folding them into the imported count.
